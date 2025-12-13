@@ -228,3 +228,82 @@ ThemeSelectionScreen #enter-hint {
 #config-docs-group .link-row {
     margin-top: 0;
 }
+
+/* =============================================================================
+   Provider Selection (in API Key Screen)
+   ============================================================================= */
+
+#provider-row {
+    width: auto;
+    height: auto;
+}
+
+#provider-list {
+    width: 24;
+    height: auto;
+}
+
+.provider-item {
+    text-align: center;
+    width: 100%;
+}
+
+.provider-item.selected {
+    color: $text;
+    text-style: bold;
+    border: round #555555;
+    padding: 0 2;
+}
+
+.provider-item.fade-1 {
+    text-opacity: 50%;
+}
+
+ApiKeyScreen #nav-hint {
+    color: $text-muted;
+    width: 16;
+    height: 100%;
+    content-align: right middle;
+    padding-right: 2;
+}
+
+ApiKeyScreen #enter-hint {
+    color: $text-muted;
+    width: 16;
+    height: 100%;
+    content-align: left middle;
+    padding-left: 2;
+}
+
+#api-key-section {
+    width: auto;
+    height: auto;
+    margin-top: 2;
+}
+
+#api-key-section.hidden {
+    display: none;
+}
+
+#local-section {
+    width: auto;
+    height: auto;
+    margin-top: 2;
+}
+
+#local-section.hidden {
+    display: none;
+}
+
+#local-info {
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#local-hint {
+    text-align: center;
+}
+
+#provider-link-row.hidden {
+    display: none;
+}
