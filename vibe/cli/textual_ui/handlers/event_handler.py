@@ -27,15 +27,11 @@ class EventHandler:
         self,
         mount_callback: Callable,
         scroll_callback: Callable,
-        todo_area_callback: Callable,
         get_tools_collapsed: Callable[[], bool],
-        get_todos_collapsed: Callable[[], bool],
     ) -> None:
         self.mount_callback = mount_callback
         self.scroll_callback = scroll_callback
-        self.todo_area_callback = todo_area_callback
         self.get_tools_collapsed = get_tools_collapsed
-        self.get_todos_collapsed = get_todos_collapsed
         self.current_tool_call: ToolCallMessage | None = None
         self.current_compact: CompactMessage | None = None
         self.tool_results: list[ToolResultMessage] = []
@@ -97,29 +93,16 @@ class EventHandler:
             status_text = adapter.get_status_text()
             loading_widget.set_status(status_text)
 
-        # Don't show todo in messages
-        if event.tool_name != "todo":
-            await self.mount_callback(tool_call)
-
+        await self.mount_callback(tool_call)
         self.current_tool_call = tool_call
         return tool_call
 
     async def _handle_tool_result(self, event: ToolResultEvent) -> None:
-        if event.tool_name == "todo":
-            todos_collapsed = self.get_todos_collapsed()
-            tool_result = ToolResultMessage(
-                event, self.current_tool_call, collapsed=todos_collapsed
-            )
-            # Show in todo area
-            todo_area = self.todo_area_callback()
-            await todo_area.remove_children()
-            await todo_area.mount(tool_result)
-        else:
-            tools_collapsed = self.get_tools_collapsed()
-            tool_result = ToolResultMessage(
-                event, self.current_tool_call, collapsed=tools_collapsed
-            )
-            await self.mount_callback(tool_result)
+        tools_collapsed = self.get_tools_collapsed()
+        tool_result = ToolResultMessage(
+            event, self.current_tool_call, collapsed=tools_collapsed
+        )
+        await self.mount_callback(tool_result)
 
         self.tool_results.append(tool_result)
         self.current_tool_call = None

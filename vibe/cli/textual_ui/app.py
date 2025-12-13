@@ -78,7 +78,6 @@ class VibeApp(App):
         Binding("ctrl+c", "force_quit", "Quit", show=False),
         Binding("escape", "interrupt", "Interrupt", show=False, priority=True),
         Binding("ctrl+o", "toggle_tool", "Toggle Tool", show=False),
-        Binding("ctrl+t", "toggle_todo", "Toggle Todo", show=False),
         Binding("shift+tab", "cycle_mode", "Cycle Mode", show=False, priority=True),
     ]
 
@@ -126,7 +125,6 @@ class VibeApp(App):
         self.history_file = HISTORY_FILE
 
         self._tools_collapsed = True
-        self._todos_collapsed = False
         self._current_streaming_message: AssistantMessage | None = None
         self._version_update_notifier = version_update_notifier
         self._is_update_check_enabled = config.enable_update_checks
@@ -151,8 +149,6 @@ class VibeApp(App):
             yield Static(id="loading-area-content")
             yield ModeIndicator(mode=self.agent_mode)
 
-        yield Static(id="todo-area")
-
         with Static(id="bottom-app-container"):
             yield ChatInputContainer(
                 history_file=self.history_file,
@@ -172,9 +168,7 @@ class VibeApp(App):
         self.event_handler = EventHandler(
             mount_callback=self._mount_and_scroll,
             scroll_callback=self._scroll_to_bottom_deferred,
-            todo_area_callback=lambda: self.query_one("#todo-area"),
             get_tools_collapsed=lambda: self._tools_collapsed,
-            get_todos_collapsed=lambda: self._todos_collapsed,
         )
 
         self._chat_input_container = self.query_one(ChatInputContainer)
@@ -712,8 +706,6 @@ class VibeApp(App):
             await self._finalize_current_streaming_message()
             messages_area = self.query_one("#messages")
             await messages_area.remove_children()
-            todo_area = self.query_one("#todo-area")
-            await todo_area.remove_children()
 
             if self._context_progress and self.agent:
                 current_state = self._context_progress.tokens
@@ -968,13 +960,7 @@ class VibeApp(App):
 
         self._tools_collapsed = not self._tools_collapsed
 
-        non_todo_results = [
-            result
-            for result in self.event_handler.tool_results
-            if result.event.tool_name != "todo"
-        ]
-
-        for result in non_todo_results:
+        for result in self.event_handler.tool_results:
             result.collapsed = self._tools_collapsed
             await result.render_result()
 
@@ -984,22 +970,6 @@ class VibeApp(App):
                 error_msg.set_collapsed(self._tools_collapsed)
         except Exception:
             pass
-
-    async def action_toggle_todo(self) -> None:
-        if not self.event_handler:
-            return
-
-        self._todos_collapsed = not self._todos_collapsed
-
-        todo_results = [
-            result
-            for result in self.event_handler.tool_results
-            if result.event.tool_name == "todo"
-        ]
-
-        for result in todo_results:
-            result.collapsed = self._todos_collapsed
-            await result.render_result()
 
     def action_cycle_mode(self) -> None:
         if self._current_bottom_app != BottomApp.Input:

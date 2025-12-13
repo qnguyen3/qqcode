@@ -24,18 +24,6 @@ Screen {
     align: left middle;
 }
 
-#todo-area {
-    height: auto;
-    max-height: 8;
-    width: 100%;
-    background: $background;
-    margin: 0;
-    padding: 0;
-    overflow-y: auto;
-    text-align: left;
-    margin-top: 0;
-}
-
 #bottom-app-container {
     height: auto;
     width: 100%;
@@ -430,11 +418,6 @@ BlinkingMessage {
 .todo-cancelled {
     height: auto;
     color: $text-muted;
-}
-
-#todo-area .tool-result {
-    margin-left: 0;
-    background: $surface;
 }
 
 .loading-widget {

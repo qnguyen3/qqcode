@@ -186,15 +186,21 @@ class TodoApprovalWidget(ToolApprovalWidget):
 
 class TodoResultWidget(ToolResultWidget):
     def compose(self) -> ComposeResult:
-        message = self.data.get("message", "")
+        by_status = self.data.get("todos_by_status", {})
+
+        # Count completed and total
+        completed = len(by_status.get("completed", []))
+        total = sum(len(todos) for todos in by_status.values())
 
         if self.collapsed:
-            yield Static(message, markup=False)
+            yield Static(
+                f"Plan ({completed}/{total} completed) (ctrl+o to expand.)",
+                markup=False,
+            )
         else:
-            yield Static(message, markup=False)
+            yield Static(f"Plan ({completed}/{total} completed)", markup=False)
             yield Static("")
 
-            by_status = self.data.get("todos_by_status", {})
             if not any(by_status.values()):
                 yield Static("No todos", markup=False, classes="todo-empty")
                 return
