@@ -6,10 +6,13 @@ from typing import Literal, cast
 
 from acp.schema import PermissionOption, SessionMode
 
+from vibe.core.types import AgentMode
+
 
 class VibeSessionMode(enum.StrEnum):
     APPROVAL_REQUIRED = enum.auto()
     AUTO_APPROVE = enum.auto()
+    PLAN = enum.auto()
 
     def to_acp_session_mode(self) -> SessionMode:
         match self:
@@ -25,6 +28,33 @@ class VibeSessionMode(enum.StrEnum):
                     name="Auto Approve",
                     description="Automatically approves all tool executions",
                 )
+            case self.PLAN:
+                return SessionMode(
+                    id=VibeSessionMode.PLAN,
+                    name="Plan",
+                    description="Read-only mode for planning and exploration",
+                )
+
+    def to_agent_mode(self) -> AgentMode:
+        """Convert ACP session mode to core AgentMode."""
+        match self:
+            case self.APPROVAL_REQUIRED:
+                return AgentMode.INTERACTIVE
+            case self.AUTO_APPROVE:
+                return AgentMode.AUTO_APPROVE
+            case self.PLAN:
+                return AgentMode.PLAN
+
+    @classmethod
+    def from_agent_mode(cls, mode: AgentMode) -> VibeSessionMode:
+        """Convert core AgentMode to ACP session mode."""
+        match mode:
+            case AgentMode.INTERACTIVE:
+                return cls.APPROVAL_REQUIRED
+            case AgentMode.AUTO_APPROVE:
+                return cls.AUTO_APPROVE
+            case AgentMode.PLAN:
+                return cls.PLAN
 
     @classmethod
     def from_acp_session_mode(cls, session_mode: SessionMode) -> VibeSessionMode | None:

@@ -11,7 +11,7 @@ from tests.stubs.fake_connection import FakeAgentSideConnection
 from vibe.acp.acp_agent import VibeAcpAgent
 from vibe.acp.utils import VibeSessionMode
 from vibe.core.agent import Agent
-from vibe.core.types import LLMChunk, LLMMessage, LLMUsage, Role
+from vibe.core.types import AgentMode, LLMChunk, LLMMessage, LLMUsage, Role
 
 
 @pytest.fixture
@@ -163,3 +163,61 @@ class TestACPSetMode:
         assert response is None
         assert acp_session.mode_id == initial_mode_id
         assert acp_session.agent.auto_approve == initial_auto_approve
+
+    @pytest.mark.asyncio
+    async def test_set_mode_to_plan(self, acp_agent: VibeAcpAgent) -> None:
+        session_response = await acp_agent.newSession(
+            NewSessionRequest(cwd=str(Path.cwd()), mcpServers=[])
+        )
+        session_id = session_response.sessionId
+        acp_session = next(
+            (s for s in acp_agent.sessions.values() if s.id == session_id), None
+        )
+        assert acp_session is not None
+
+        # Start in approval required mode
+        assert acp_session.mode_id == VibeSessionMode.APPROVAL_REQUIRED
+        assert acp_session.agent.mode == AgentMode.INTERACTIVE
+
+        # Switch to plan mode
+        response = await acp_agent.setSessionMode(
+            SetSessionModeRequest(sessionId=session_id, modeId=VibeSessionMode.PLAN)
+        )
+
+        assert response is not None
+        assert acp_session.mode_id == VibeSessionMode.PLAN
+        assert acp_session.agent.mode == AgentMode.PLAN
+        # Plan mode should not auto-approve
+        assert acp_session.agent.auto_approve is False
+
+    @pytest.mark.asyncio
+    async def test_set_mode_from_plan_to_auto_approve(
+        self, acp_agent: VibeAcpAgent
+    ) -> None:
+        session_response = await acp_agent.newSession(
+            NewSessionRequest(cwd=str(Path.cwd()), mcpServers=[])
+        )
+        session_id = session_response.sessionId
+        acp_session = next(
+            (s for s in acp_agent.sessions.values() if s.id == session_id), None
+        )
+        assert acp_session is not None
+
+        # Switch to plan mode first
+        await acp_agent.setSessionMode(
+            SetSessionModeRequest(sessionId=session_id, modeId=VibeSessionMode.PLAN)
+        )
+        assert acp_session.mode_id == VibeSessionMode.PLAN
+        assert acp_session.agent.mode == AgentMode.PLAN
+
+        # Switch to auto approve mode
+        response = await acp_agent.setSessionMode(
+            SetSessionModeRequest(
+                sessionId=session_id, modeId=VibeSessionMode.AUTO_APPROVE
+            )
+        )
+
+        assert response is not None
+        assert acp_session.mode_id == VibeSessionMode.AUTO_APPROVE
+        assert acp_session.agent.mode == AgentMode.AUTO_APPROVE
+        assert acp_session.agent.auto_approve is True

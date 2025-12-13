@@ -35,6 +35,7 @@ from acp.schema import (
     AllowedOutcome,
     AuthenticateResponse,
     AuthMethod,
+    CurrentModeUpdate,
     Implementation,
     ModelInfo,
     PromptCapabilities,
@@ -60,6 +61,7 @@ from vibe.core.config import MissingAPIKeyError, VibeConfig, load_api_keys_from_
 from vibe.core.types import (
     AssistantEvent,
     AsyncApprovalCallback,
+    ModeChangedEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
@@ -271,8 +273,9 @@ class VibeAcpAgent(AcpAgent):
         if not VibeSessionMode.is_valid(params.modeId):
             return None
 
-        session.mode_id = VibeSessionMode(params.modeId)
-        session.agent.auto_approve = params.modeId == VibeSessionMode.AUTO_APPROVE
+        vibe_mode = VibeSessionMode(params.modeId)
+        session.mode_id = vibe_mode
+        session.agent.mode = vibe_mode.to_agent_mode()
 
         return SetSessionModeResponse()
 
@@ -415,6 +418,15 @@ class VibeAcpAgent(AcpAgent):
                 session_update = tool_result_session_update(event)
                 if session_update:
                     yield session_update
+
+            elif isinstance(event, ModeChangedEvent):
+                # Update session mode and notify client
+                new_mode = VibeSessionMode.from_agent_mode(event.new_mode)
+                session.mode_id = new_mode
+                yield CurrentModeUpdate(
+                    sessionUpdate="current_mode_update",
+                    currentModeId=new_mode,
+                )
 
     @override
     async def cancel(self, params: CancelNotification) -> None:

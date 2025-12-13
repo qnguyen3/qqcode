@@ -102,18 +102,21 @@ class TestACPNewSession:
         assert session_response.modes is not None
         assert session_response.modes.currentModeId is not None
         assert session_response.modes.availableModes is not None
-        assert len(session_response.modes.availableModes) == 2
+        assert len(session_response.modes.availableModes) == 3
 
         assert session_response.modes.currentModeId == VibeSessionMode.APPROVAL_REQUIRED
-        assert (
-            session_response.modes.availableModes[0].id
-            == VibeSessionMode.APPROVAL_REQUIRED
-        )
-        assert session_response.modes.availableModes[0].name == "Approval Required"
-        assert (
-            session_response.modes.availableModes[1].id == VibeSessionMode.AUTO_APPROVE
-        )
-        assert session_response.modes.availableModes[1].name == "Auto Approve"
+
+        # Check all available modes are present
+        mode_ids = [m.id for m in session_response.modes.availableModes]
+        assert VibeSessionMode.APPROVAL_REQUIRED in mode_ids
+        assert VibeSessionMode.AUTO_APPROVE in mode_ids
+        assert VibeSessionMode.PLAN in mode_ids
+
+        # Check mode names
+        modes_by_id = {m.id: m for m in session_response.modes.availableModes}
+        assert modes_by_id[VibeSessionMode.APPROVAL_REQUIRED].name == "Approval Required"
+        assert modes_by_id[VibeSessionMode.AUTO_APPROVE].name == "Auto Approve"
+        assert modes_by_id[VibeSessionMode.PLAN].name == "Plan"
 
     @pytest.mark.skip(reason="TODO: Fix this test")
     @pytest.mark.asyncio
