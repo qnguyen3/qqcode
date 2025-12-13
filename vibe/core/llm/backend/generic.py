@@ -44,6 +44,7 @@ class APIAdapter(Protocol):
         enable_streaming: bool,
         provider: ProviderConfig,
         api_key: str | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> PreparedRequest: ...
 
     def parse_response(self, data: dict[str, Any]) -> LLMChunk: ...
@@ -77,6 +78,7 @@ class OpenAIAdapter(APIAdapter):
         tools: list[AvailableTool] | None,
         max_tokens: int | None,
         tool_choice: StrToolChoice | AvailableTool | None,
+        extra_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         payload = {
             "model": model_name,
@@ -94,6 +96,8 @@ class OpenAIAdapter(APIAdapter):
             )
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if extra_body:
+            payload.update(extra_body)
 
         return payload
 
@@ -115,11 +119,18 @@ class OpenAIAdapter(APIAdapter):
         enable_streaming: bool,
         provider: ProviderConfig,
         api_key: str | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> PreparedRequest:
         converted_messages = [msg.model_dump(exclude_none=True) for msg in messages]
 
         payload = self.build_payload(
-            model_name, converted_messages, temperature, tools, max_tokens, tool_choice
+            model_name,
+            converted_messages,
+            temperature,
+            tools,
+            max_tokens,
+            tool_choice,
+            extra_body,
         )
 
         if enable_streaming:
@@ -227,6 +238,8 @@ class GenericBackend:
         api_style = getattr(self._provider, "api_style", "openai")
         adapter = BACKEND_ADAPTERS[api_style]
 
+        extra_body = getattr(model, "extra_body", None) or None
+
         endpoint, headers, body = adapter.prepare_request(
             model_name=model.name,
             messages=messages,
@@ -237,6 +250,7 @@ class GenericBackend:
             enable_streaming=False,
             provider=self._provider,
             api_key=api_key,
+            extra_body=extra_body,
         )
 
         if extra_headers:
@@ -292,6 +306,8 @@ class GenericBackend:
         api_style = getattr(self._provider, "api_style", "openai")
         adapter = BACKEND_ADAPTERS[api_style]
 
+        extra_body = getattr(model, "extra_body", None) or None
+
         endpoint, headers, body = adapter.prepare_request(
             model_name=model.name,
             messages=messages,
@@ -302,6 +318,7 @@ class GenericBackend:
             enable_streaming=True,
             provider=self._provider,
             api_key=api_key,
+            extra_body=extra_body,
         )
 
         if extra_headers:

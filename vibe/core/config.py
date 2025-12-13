@@ -245,6 +245,7 @@ class ModelConfig(BaseModel):
     temperature: float = 0.2
     input_price: float = 0.0  # Price per million input tokens
     output_price: float = 0.0  # Price per million output tokens
+    extra_body: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -266,6 +267,11 @@ DEFAULT_PROVIDERS = [
         name="llamacpp",
         api_base="http://127.0.0.1:8080/v1",
         api_key_env_var="",  # NOTE: if you wish to use --api-key in llama-server, change this value
+    ),
+    ProviderConfig(
+        name="openrouter",
+        api_base="https://openrouter.ai/api/v1",
+        api_key_env_var="OPENROUTER_API_KEY",
     ),
 ]
 
@@ -290,6 +296,37 @@ DEFAULT_MODELS = [
         alias="local",
         input_price=0.0,
         output_price=0.0,
+    ),
+    # OpenRouter GPT-5.2 models with reasoning effort levels
+    ModelConfig(
+        name="openai/gpt-5.2",
+        provider="openrouter",
+        alias="openrouter/gpt-5.2",
+        extra_body={"reasoning": {"effort": "none"}},
+    ),
+    ModelConfig(
+        name="openai/gpt-5.2",
+        provider="openrouter",
+        alias="openrouter/gpt-5.2:low",
+        extra_body={"reasoning": {"effort": "low"}},
+    ),
+    ModelConfig(
+        name="openai/gpt-5.2",
+        provider="openrouter",
+        alias="openrouter/gpt-5.2:medium",
+        extra_body={"reasoning": {"effort": "medium"}},
+    ),
+    ModelConfig(
+        name="openai/gpt-5.2",
+        provider="openrouter",
+        alias="openrouter/gpt-5.2:high",
+        extra_body={"reasoning": {"effort": "high"}},
+    ),
+    ModelConfig(
+        name="openai/gpt-5.2",
+        provider="openrouter",
+        alias="openrouter/gpt-5.2:xhigh",
+        extra_body={"reasoning": {"effort": "xhigh"}},
     ),
 ]
 
