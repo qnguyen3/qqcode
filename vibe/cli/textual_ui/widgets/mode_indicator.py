@@ -24,7 +24,7 @@ class ModeIndicator(Static):
                 self.update("⏵⏵ auto-approve (shift+tab to toggle)")
                 self.add_class("mode-on")
             case AgentMode.PLAN:
-                self.update("📋 plan mode (shift+tab to toggle)")
+                self.update("⌥ plan mode (shift+tab to toggle)")
                 self.add_class("mode-plan")
 
     def set_mode(self, mode: AgentMode) -> None:
