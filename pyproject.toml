@@ -1,16 +1,16 @@
 [project]
-name = "mistral-vibe"
+name = "qqcode"
 version = "1.1.2"
-description = "Minimal CLI coding agent by Mistral"
+description = "Minimal CLI coding agent"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Mistral AI" }]
+authors = [{ name = "QQcode Team" }]
 keywords = [
     "ai",
     "cli",
     "coding-assistant",
-    "mistral",
+    "qqcode",
     "llm",
     "developer-tools",
 ]
@@ -47,10 +47,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mistralai/mistral-vibe"
-Repository = "https://github.com/mistralai/mistral-vibe"
-Issues = "https://github.com/mistralai/mistral-vibe/issues"
-Documentation = "https://github.com/mistralai/mistral-vibe#readme"
+Homepage = "https://github.com/qnguyen3/qqcode"
+Repository = "https://github.com/qnguyen3/qqcode"
+Issues = "https://github.com/qnguyen3/qqcode/issues"
+Documentation = "https://github.com/qnguyen3/qqcode#readme"
 
 
 [build-system]
@@ -65,8 +65,8 @@ include = ["vibe/"]
 
 
 [project.scripts]
-vibe = "vibe.cli.entrypoint:main"
-vibe-acp = "vibe.acp.entrypoint:main"
+qqcode = "vibe.cli.entrypoint:main"
+qqcode-acp = "vibe.acp.entrypoint:main"
 
 
 [tool.uv]

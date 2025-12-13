@@ -1,17 +1,17 @@
 # Adding a new model provider
 
-Vibe separates **models** (what you run) from **providers** (where requests go).
+QQcode separates **models** (what you run) from **providers** (where requests go).
 
 In most cases, adding a provider requires **only a config change** (no code).
 
 ## 1) Add it via config (recommended)
 
-Vibe loads configuration from:
+QQcode loads configuration from:
 
-- `./.vibe/config.toml` (if present in the current project or any parent directory)
-- otherwise `~/.vibe/config.toml`
+- `./.qqcode/config.toml` (if present in the current project or any parent directory)
+- otherwise `~/.qqcode/config.toml`
 
-If multiple `./.vibe/config.toml` files exist in parent directories, the **closest one to your current directory wins**.
+If multiple `./.qqcode/config.toml` files exist in parent directories, the **closest one to your current directory wins**.
 
 ### Provider fields
 
@@ -27,7 +27,7 @@ A provider is defined by `ProviderConfig` (see `core/config.py`):
 
 A model is defined by `ModelConfig` (see `core/config.py`):
 
-- `name`: provider’s model identifier
+- `name`: provider's model identifier
 - `provider`: must match a `providers[].name`
 - `alias`: friendly name you select via `active_model`
 - `temperature` (optional)
@@ -39,7 +39,7 @@ A model is defined by `ModelConfig` (see `core/config.py`):
 #### A) OpenAI-compatible provider (generic)
 
 ```toml
-# ~/.vibe/config.toml or ./.vibe/config.toml
+# ~/.qqcode/config.toml or ./.qqcode/config.toml
 
 active_model = "myprovider/my-model"
 
@@ -93,9 +93,9 @@ alias = "local"
 
 ## 2) Set the API key
 
-Vibe checks that the configured provider’s `api_key_env_var` is set.
+QQcode checks that the configured provider's `api_key_env_var` is set.
 
-You can set it in your shell environment, or put it in `~/.vibe/.env` (Vibe loads
+You can set it in your shell environment, or put it in `~/.qqcode/.env` (QQcode loads
 that file and exports values into `os.environ` at startup).
 
 Example:
@@ -106,9 +106,9 @@ export MYPROVIDER_API_KEY="..."
 
 ## Troubleshooting
 
-- **Missing API key**: if you configured `api_key_env_var`, make sure it is set in your shell env, or add it to `~/.vibe/.env`.
+- **Missing API key**: if you configured `api_key_env_var`, make sure it is set in your shell env, or add it to `~/.qqcode/.env`.
 - **Wrong backend**: `https://api.mistral.ai` and `https://codestral.mistral.ai` must use `backend = "MISTRAL"`. Everything else should use `backend = "GENERIC"`.
-- **Provider isn’t OpenAI-compatible**: start with `backend = "GENERIC"`, but you may need a custom `api_style` adapter or a new backend (see next section).
+- **Provider isn't OpenAI-compatible**: start with `backend = "GENERIC"`, but you may need a custom `api_style` adapter or a new backend (see next section).
 
 ## 3) When you need code changes
 
@@ -122,7 +122,7 @@ The generic backend posts to:
 
 and expects OpenAI-like response/streaming shapes.
 
-### B) Provider is *not* OpenAI-compatible, but is “close”
+### B) Provider is *not* OpenAI-compatible, but is "close"
 
 Add a new **adapter** for the generic backend:
 
@@ -154,7 +154,7 @@ Backends are chosen via `provider.backend` and created by the agent (see `core/a
 
 ## Notes / gotchas
 
-- Vibe enforces a compatibility check for Mistral API bases:
+- QQcode enforces a compatibility check for Mistral API bases:
   - Mistral API (`https://api.mistral.ai` / `https://codestral.mistral.ai`) must use `backend = "MISTRAL"`.
   - Other API bases should use `backend = "GENERIC"`.
-- If a provider’s streaming format differs from OpenAI’s SSE (`data: {...}` lines), you will likely need a custom adapter/backend.
+- If a provider's streaming format differs from OpenAI's SSE (`data: {...}` lines), you will likely need a custom adapter/backend.

@@ -19,7 +19,7 @@ class Arguments:
 
 
 def parse_arguments() -> Arguments:
-    parser = argparse.ArgumentParser(description="Run Mistral Vibe in ACP mode")
+    parser = argparse.ArgumentParser(description="Run QQcode in ACP mode")
     parser.add_argument("--setup", action="store_true", help="Setup API key and exit")
     args = parser.parse_args()
     return Arguments(setup=args.setup)

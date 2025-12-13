@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Mistral Vibe Installation Script
-# This script installs uv if not present and then installs mistral-vibe using uv
+# QQcode Installation Script
+# This script installs uv if not present and then installs qqcode using uv
 
 set -euo pipefail
 
@@ -78,26 +78,22 @@ function install_uv() {
     fi
 }
 
-function install_vibe() {
-    info "Installing mistral-vibe from GitHub repository using uv..."
-    uv tool install mistral-vibe
+function install_qqcode() {
+    info "Installing qqcode from PyPI using uv..."
+    uv tool install qqcode
 
-    success "Mistral Vibe installed successfully! (commands: vibe, vibe-acp)"
+    success "QQcode installed successfully! (commands: qqcode, qqcode-acp)"
 }
 
 function main() {
     echo
-    echo "██████████████████░░"
-    echo "██████████████████░░"
-    echo "████  ██████  ████░░"
-    echo "████    ██    ████░░"
-    echo "████          ████░░"
-    echo "████  ██  ██  ████░░"
-    echo "██      ██      ██░░"
-    echo "██████████████████░░"
-    echo "██████████████████░░"
+    echo "  ▇▇▇▇      ▇▇▇▇  "
+    echo "▇▇    ▇▇  ▇▇    ▇▇"
+    echo "▇▇    ▇▇  ▇▇    ▇▇"
+    echo "▇▇  ▇▇▇▇  ▇▇  ▇▇▇▇"
+    echo "  ▇▇▇▇▇▇    ▇▇▇▇▇▇"
     echo
-    echo "Starting Mistral Vibe installation..."
+    echo "Starting QQcode installation..."
     echo
 
     check_platform
@@ -108,18 +104,18 @@ function main() {
         install_uv
     fi
 
-    install_vibe
+    install_qqcode
 
-    if command -v vibe &> /dev/null; then
+    if command -v qqcode &> /dev/null; then
         success "Installation completed successfully!"
         echo
-        echo "You can now run vibe with:"
-        echo "  vibe"
+        echo "You can now run qqcode with:"
+        echo "  qqcode"
         echo
         echo "Or for ACP mode:"
-        echo "  vibe-acp"
+        echo "  qqcode-acp"
     else
-        error "Installation completed but 'vibe' command not found"
+        error "Installation completed but 'qqcode' command not found"
         error "Please check your installation and PATH settings"
         exit 1
     fi

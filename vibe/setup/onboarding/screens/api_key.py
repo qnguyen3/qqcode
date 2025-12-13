@@ -46,7 +46,7 @@ DEFAULT_MODELS_BY_PROVIDER = {
 OAUTH_PROVIDERS = {"anthropic"}
 
 CONFIG_DOCS_URL = (
-    "https://github.com/mistralai/mistral-vibe?tab=readme-ov-file#configuration"
+    "https://github.com/qnguyen3/qqcode?tab=readme-ov-file#configuration"
 )
 
 VISIBLE_NEIGHBORS = 1
@@ -119,7 +119,7 @@ class ApiKeyScreen(OnboardingScreen):
         )
 
     def _compose_config_docs(self) -> ComposeResult:
-        yield Static("[dim]Learn more about Vibe configuration:[/]")
+        yield Static("[dim]Learn more about QQcode configuration:[/]")
         yield Horizontal(
             Static("→ ", classes="link-chevron"),
             Link(CONFIG_DOCS_URL, url=CONFIG_DOCS_URL),

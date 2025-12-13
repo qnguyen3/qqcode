@@ -23,7 +23,7 @@ from vibe.setup.onboarding import run_onboarding
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the Mistral Vibe interactive CLI")
+    parser = argparse.ArgumentParser(description="Run the QQcode interactive CLI")
     parser.add_argument(
         "initial_prompt",
         nargs="?",
@@ -81,7 +81,7 @@ def parse_arguments() -> argparse.Namespace:
         "--agent",
         metavar="NAME",
         default=None,
-        help="Load agent configuration from ~/.vibe/agents/NAME.toml",
+        help="Load agent configuration from ~/.qqcode/agents/NAME.toml",
     )
     parser.add_argument("--setup", action="store_true", help="Setup API key and exit")
     parser.add_argument(

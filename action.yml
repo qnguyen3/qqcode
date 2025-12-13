@@ -1,7 +1,7 @@
 ---
-name: Mistral Vibe
-description: "Download, install, and run Mistral Vibe"
-author: Mistral AI
+name: QQcode
+description: "Download, install, and run QQcode"
+author: QQcode Team
 
 inputs:
   prompt:
@@ -40,14 +40,14 @@ runs:
     - name: Install uv
       uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
-    - name: Install Mistral Vibe
+    - name: Install QQcode
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
         uv sync --locked --all-extras --dev
 
-    - name: Run Mistral Vibe
-      id: run-mistral-vibe
+    - name: Run QQcode
+      id: run-qqcode
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
@@ -59,6 +59,6 @@ runs:
 
         # Change back to the original working directory for the tool to work
         cd "${{ github.workspace }}"
-        uv run --directory "${{ github.action_path }}" vibe \
+        uv run --directory "${{ github.action_path }}" qqcode \
           --auto-approve \
           -p "${ESCAPED_PROMPT}"

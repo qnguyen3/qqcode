@@ -109,14 +109,14 @@ class VibeAcpAgent(AcpAgent):
         auth_methods = (
             [
                 AuthMethod(
-                    id="vibe-setup",
+                    id="qqcode-setup",
                     name="Register your API Key",
-                    description="Register your API Key inside Mistral Vibe",
+                    description="Register your API Key inside QQcode",
                     field_meta={
                         "terminal-auth": {
                             "command": command,
                             "args": args,
-                            "label": "Mistral Vibe Setup",
+                            "label": "QQcode Setup",
                         }
                     },
                 )
@@ -134,8 +134,8 @@ class VibeAcpAgent(AcpAgent):
             ),
             protocolVersion=PROTOCOL_VERSION,
             agentInfo=Implementation(
-                name="@mistralai/mistral-vibe",
-                title="Mistral Vibe",
+                name="@qqcode/qqcode",
+                title="QQcode",
                 version=__version__,
             ),
             authMethods=auth_methods,

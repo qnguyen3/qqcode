@@ -25,9 +25,9 @@ from vibe.core.tools.base import BaseToolConfig
 
 
 def get_vibe_home() -> Path:
-    if vibe_home := os.getenv("VIBE_HOME"):
+    if vibe_home := os.getenv("QQCODE_HOME"):
         return Path(vibe_home).expanduser().resolve()
-    return Path.home() / ".vibe"
+    return Path.home() / ".qqcode"
 
 
 GLOBAL_CONFIG_DIR = get_vibe_home()
@@ -37,7 +37,7 @@ GLOBAL_ENV_FILE = GLOBAL_CONFIG_DIR / ".env"
 
 def resolve_config_file() -> Path:
     for directory in (cwd := Path.cwd(), *cwd.parents):
-        if (candidate := directory / ".vibe" / "config.toml").is_file():
+        if (candidate := directory / ".qqcode" / "config.toml").is_file():
             return candidate
     return GLOBAL_CONFIG_FILE
 
@@ -55,8 +55,8 @@ CONFIG_DIR = CONFIG_FILE.parent
 AGENT_DIR = CONFIG_DIR / "agents"
 PROMPT_DIR = CONFIG_DIR / "prompts"
 INSTRUCTIONS_FILE = CONFIG_DIR / "instructions.md"
-HISTORY_FILE = CONFIG_DIR / "vibehistory"
-PROJECT_DOC_FILENAMES = ["AGENTS.md", "VIBE.md", ".vibe.md"]
+HISTORY_FILE = CONFIG_DIR / "qqcodehistory"
+PROJECT_DOC_FILENAMES = ["AGENTS.md", "QQCODE.md", ".qqcode.md"]
 
 
 class MissingAPIKeyError(RuntimeError):
@@ -432,7 +432,7 @@ class VibeConfig(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_prefix="VIBE_", case_sensitive=False, extra="forbid"
+        env_prefix="QQCODE_", case_sensitive=False, extra="forbid"
     )
 
     @property

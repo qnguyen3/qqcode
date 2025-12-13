@@ -62,7 +62,7 @@ class ToolManager:
 
         cwd = config.effective_workdir
         for directory in (cwd, *cwd.parents):
-            tools_dir = directory / ".vibe" / "tools"
+            tools_dir = directory / ".qqcode" / "tools"
             if tools_dir.is_dir():
                 paths.append(tools_dir)
                 break

@@ -35,7 +35,7 @@ async def _wait_for(
 def onboarding_app(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> tuple[OnboardingApp, Path, dict[str, Any]]:
-    vibe_home = tmp_path / ".vibe"
+    vibe_home = tmp_path / ".qqcode"
     env_file = vibe_home / ".env"
     saved_updates: dict[str, Any] = {}
 

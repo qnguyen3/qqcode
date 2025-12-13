@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mistral Vibe is an open-source CLI coding assistant powered by Mistral's models. It provides a conversational interface to codebases with tools for file manipulation, code searching, version control, and command execution.
+QQcode is an open-source CLI coding assistant. It provides a conversational interface to codebases with tools for file manipulation, code searching, version control, and command execution.
 
 ## Development Commands
 
@@ -13,7 +13,7 @@ Mistral Vibe is an open-source CLI coding assistant powered by Mistral's models.
 uv sync --all-extras
 
 # Run the CLI locally
-uv run vibe
+uv run qqcode
 
 # Run all tests (parallel by default)
 uv run pytest
@@ -45,7 +45,7 @@ uv run pre-commit run --all-files
 ### Package Structure
 
 - **`vibe/cli/`** - CLI entry point and Textual-based TUI
-  - `entrypoint.py` - Main entry point (`vibe` command)
+  - `entrypoint.py` - Main entry point (`qqcode` command)
   - `textual_ui/` - Textual app, widgets, and event handlers
   - `autocompletion/` - Path and slash command autocompletion
 
@@ -53,12 +53,12 @@ uv run pre-commit run --all-files
   - `agent.py` - Main `Agent` class orchestrating LLM interactions and tool execution
   - `config.py` - `VibeConfig` settings loaded from `config.toml` with Pydantic
   - `tools/` - Tool system (base classes, manager, built-in tools, MCP integration)
-  - `llm/` - LLM backend abstraction (Mistral and generic OpenAI-compatible)
+  - `llm/` - LLM backend abstraction (supports multiple providers)
   - `middleware.py` - Request/response middleware (auto-compact, context warnings, limits)
   - `prompts/` - System prompt templates (markdown files)
 
 - **`vibe/acp/`** - Agent Client Protocol server implementation
-  - Exposes Vibe as an ACP-compatible agent
+  - Exposes QQcode as an ACP-compatible agent
 
 - **`vibe/setup/`** - First-run onboarding flow
 
@@ -72,9 +72,9 @@ uv run pre-commit run --all-files
 - Built-in tools: `bash`, `grep`, `read_file`, `write_file`, `search_replace`, `todo`
 - MCP tools are dynamically created via proxy classes
 
-**Configuration (`vibe/core/config.py`)**: Pydantic-based settings loaded from `~/.vibe/config.toml` or `./.vibe/config.toml`. Supports custom system prompts, agent configurations, MCP servers, and tool permissions.
+**Configuration (`vibe/core/config.py`)**: Pydantic-based settings loaded from `~/.qqcode/config.toml` or `./.qqcode/config.toml`. Supports custom system prompts, agent configurations, MCP servers, and tool permissions.
 
-**LLM Backends (`vibe/core/llm/backend/`)**: Factory pattern supporting Mistral API and generic OpenAI-compatible endpoints.
+**LLM Backends (`vibe/core/llm/backend/`)**: Factory pattern supporting multiple API providers.
 
 ## Code Style
 

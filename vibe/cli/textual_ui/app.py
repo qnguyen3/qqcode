@@ -1152,7 +1152,7 @@ class VibeApp(App):
         if self._update_notification_shown:
             return
 
-        message = f'{self._current_version} => {update.latest_version}\nRun "uv tool upgrade mistral-vibe" to update'
+        message = f'{self._current_version} => {update.latest_version}\nRun "uv tool upgrade qqcode" to update'
 
         self.notify(
             message, title="Update available", severity="information", timeout=10
@@ -1172,7 +1172,7 @@ def run_textual_ui(
     session_info: ResumeSessionInfo | None = None,
 ) -> None:
     update_notifier = GitHubVersionUpdateGateway(
-        owner="mistralai", repository="mistral-vibe", token=os.getenv("GITHUB_TOKEN")
+        owner="qnguyen3", repository="qqcode", token=os.getenv("GITHUB_TOKEN")
     )
     app = VibeApp(
         config=config,
