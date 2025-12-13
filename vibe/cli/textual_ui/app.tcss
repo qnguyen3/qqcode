@@ -624,7 +624,7 @@ WelcomeBanner {
 #plan-approval-app {
     width: 100%;
     height: auto;
-    max-height: 24;
+    max-height: 40;
     background: $background;
     border: round $primary;
     padding: 0 1;
@@ -639,7 +639,7 @@ WelcomeBanner {
 #plan-content-container {
     width: 100%;
     height: auto;
-    max-height: 10;
+    max-height: 28;
     background: $surface;
     padding: 0 1;
     margin: 0 0 1 0;

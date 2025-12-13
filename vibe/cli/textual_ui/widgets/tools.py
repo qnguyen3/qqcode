@@ -7,6 +7,21 @@ from vibe.cli.textual_ui.widgets.blinking_message import BlinkingMessage
 from vibe.core.tools.ui import ToolUIDataAdapter
 from vibe.core.types import ToolCallEvent, ToolResultEvent
 
+# Max characters for tool call display before truncation
+_TOOL_CALL_MAX_DISPLAY_LENGTH = 300
+_TRUNCATION_ELLIPSIS = " ... "
+
+
+def _truncate_text(text: str, max_length: int = _TOOL_CALL_MAX_DISPLAY_LENGTH) -> str:
+    """Truncate text to max_length, showing beginning and end with ellipsis."""
+    if len(text) <= max_length:
+        return text
+    # Show roughly equal amounts from beginning and end
+    keep_chars = max_length - len(_TRUNCATION_ELLIPSIS)
+    front_chars = keep_chars // 2
+    back_chars = keep_chars - front_chars
+    return text[:front_chars] + _TRUNCATION_ELLIPSIS + text[-back_chars:]
+
 
 class ToolCallMessage(BlinkingMessage):
     def __init__(self, event: ToolCallEvent) -> None:
@@ -21,7 +36,7 @@ class ToolCallMessage(BlinkingMessage):
         adapter = ToolUIDataAdapter(self.event.tool_class)
         display = adapter.get_call_display(self.event)
 
-        return f"{display.summary}"
+        return _truncate_text(display.summary)
 
 
 class ToolResultMessage(Static):
