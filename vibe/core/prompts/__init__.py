@@ -25,6 +25,7 @@ class SystemPrompt(Prompt):
 class UtilityPrompt(Prompt):
     COMPACT = auto()
     DANGEROUS_DIRECTORY = auto()
+    PLAN_MODE = auto()
     PROJECT_CONTEXT = auto()
 
 

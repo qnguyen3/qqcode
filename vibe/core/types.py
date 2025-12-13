@@ -18,6 +18,14 @@ from pydantic import (
 from vibe.core.tools.base import BaseTool
 
 
+class AgentMode(StrEnum):
+    """Operating mode for the agent."""
+
+    INTERACTIVE = "interactive"  # Default - asks for approval on tool calls
+    AUTO_APPROVE = "auto_approve"  # Executes all tools without asking
+    PLAN = "plan"  # Read-only operations only, for planning
+
+
 @dataclass
 class ResumeSessionInfo:
     type: Literal["continue", "resume"]

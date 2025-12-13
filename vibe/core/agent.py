@@ -36,6 +36,7 @@ from vibe.core.tools.base import (
 )
 from vibe.core.tools.manager import ToolManager
 from vibe.core.types import (
+    AgentMode,
     AgentStats,
     ApprovalCallback,
     AssistantEvent,
@@ -59,6 +60,9 @@ from vibe.core.utils import (
     get_user_cancellation_message,
     is_user_cancellation_event,
 )
+
+# Tools allowed in Plan Mode (read-only operations)
+PLAN_MODE_ALLOWED_TOOLS = frozenset({"read_file", "grep", "todo"})
 
 
 class ToolExecutionResponse(StrEnum):
@@ -88,6 +92,7 @@ class Agent:
         self,
         config: VibeConfig,
         auto_approve: bool = False,
+        mode: AgentMode | None = None,
         message_observer: Callable[[LLMMessage], None] | None = None,
         max_turns: int | None = None,
         max_price: float | None = None,
@@ -124,7 +129,14 @@ class Agent:
         except ValueError:
             pass
 
-        self.auto_approve = auto_approve
+        # Support both mode and legacy auto_approve parameter
+        if mode is not None:
+            self._mode = mode
+        elif auto_approve:
+            self._mode = AgentMode.AUTO_APPROVE
+        else:
+            self._mode = AgentMode.INTERACTIVE
+
         self.approval_callback: ApprovalCallback | None = None
 
         self.session_id = str(uuid4())
@@ -132,11 +144,34 @@ class Agent:
         self.interaction_logger = InteractionLogger(
             config.session_logging,
             self.session_id,
-            auto_approve,
+            self._mode == AgentMode.AUTO_APPROVE,
             config.effective_workdir,
         )
 
         self._last_chunk: LLMChunk | None = None
+
+    @property
+    def mode(self) -> AgentMode:
+        """Get the current agent mode."""
+        return self._mode
+
+    @mode.setter
+    def mode(self, value: AgentMode) -> None:
+        """Set the agent mode."""
+        self._mode = value
+
+    @property
+    def auto_approve(self) -> bool:
+        """Backward compatibility: returns True if mode is AUTO_APPROVE."""
+        return self._mode == AgentMode.AUTO_APPROVE
+
+    @auto_approve.setter
+    def auto_approve(self, value: bool) -> None:
+        """Backward compatibility: sets mode to AUTO_APPROVE or INTERACTIVE."""
+        if value:
+            self._mode = AgentMode.AUTO_APPROVE
+        elif self._mode == AgentMode.AUTO_APPROVE:
+            self._mode = AgentMode.INTERACTIVE
 
     def _select_backend(self) -> BackendLike:
         active_model = self.config.get_active_model()
@@ -235,8 +270,17 @@ class Agent:
             messages=self.messages, stats=self.stats, config=self.config
         )
 
+    def _get_plan_mode_prefix(self) -> str:
+        """Get the plan mode instructions prefix for user messages."""
+        if self._mode != AgentMode.PLAN:
+            return ""
+        return UtilityPrompt.PLAN_MODE.read() + "\n\n---\n\n"
+
     async def _conversation_loop(self, user_msg: str) -> AsyncGenerator[BaseEvent]:
-        self.messages.append(LLMMessage(role=Role.user, content=user_msg))
+        # Prepend plan mode instructions if in plan mode
+        plan_prefix = self._get_plan_mode_prefix()
+        full_msg = f"{plan_prefix}{user_msg}" if plan_prefix else user_msg
+        self.messages.append(LLMMessage(role=Role.user, content=full_msg))
         self.stats.steps += 1
 
         try:
@@ -719,12 +763,28 @@ class Agent:
                 f"API error from {provider.name} (model: {active_model.name}): {e}"
             ) from e
 
-    async def _should_execute_tool(
+    async def _should_execute_tool(  # noqa: PLR0911
         self, tool: BaseTool, args: dict[str, Any], tool_call_id: str
     ) -> ToolDecision:
-        if self.auto_approve:
+        tool_name = tool.get_name()
+
+        # Plan mode: only allow read-only tools
+        if self._mode == AgentMode.PLAN:
+            if tool_name in PLAN_MODE_ALLOWED_TOOLS:
+                return ToolDecision(verdict=ToolExecutionResponse.EXECUTE)
+            return ToolDecision(
+                verdict=ToolExecutionResponse.SKIP,
+                feedback=(
+                    f"Plan mode: '{tool_name}' is not allowed. "
+                    f"Only read-only tools ({', '.join(sorted(PLAN_MODE_ALLOWED_TOOLS))}) are permitted."
+                ),
+            )
+
+        # Auto-approve mode: execute all tools
+        if self._mode == AgentMode.AUTO_APPROVE:
             return ToolDecision(verdict=ToolExecutionResponse.EXECUTE)
 
+        # Interactive mode: check permissions
         args_model, _ = tool._get_tool_args_results()
         validated_args = args_model.model_validate(args)
 
@@ -739,7 +799,6 @@ class Agent:
                 feedback=f"Tool '{tool.get_name()}' blocked by denylist: [{denylist_str}]",
             )
 
-        tool_name = tool.get_name()
         perm = self.tool_manager.get_tool_config(tool_name).permission
 
         if perm is ToolPermission.ALWAYS:

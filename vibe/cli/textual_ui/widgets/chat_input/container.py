@@ -17,11 +17,13 @@ from vibe.cli.textual_ui.widgets.chat_input.completion_manager import (
 from vibe.cli.textual_ui.widgets.chat_input.completion_popup import CompletionPopup
 from vibe.cli.textual_ui.widgets.chat_input.text_area import ChatTextArea
 from vibe.core.autocompletion.completers import CommandCompleter, PathCompleter
+from vibe.core.types import AgentMode
 
 
 class ChatInputContainer(Vertical):
     ID_INPUT_BOX = "input-box"
     BORDER_WARNING_CLASS = "border-warning"
+    BORDER_PLAN_CLASS = "border-plan"
 
     class Submitted(Message):
         def __init__(self, value: str) -> None:
@@ -32,13 +34,17 @@ class ChatInputContainer(Vertical):
         self,
         history_file: Path | None = None,
         command_registry: CommandRegistry | None = None,
-        show_warning: bool = False,
+        show_warning: bool | AgentMode = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._history_file = history_file
         self._command_registry = command_registry or CommandRegistry()
-        self._show_warning = show_warning
+        # Support both bool and AgentMode
+        if isinstance(show_warning, AgentMode):
+            self._mode = show_warning
+        else:
+            self._mode = AgentMode.AUTO_APPROVE if show_warning else AgentMode.INTERACTIVE
 
         command_entries = [
             (alias, command.description)
@@ -53,13 +59,21 @@ class ChatInputContainer(Vertical):
         self._completion_popup: CompletionPopup | None = None
         self._body: ChatInputBody | None = None
 
+    def _get_border_class(self) -> str:
+        """Get the border CSS class based on current mode."""
+        match self._mode:
+            case AgentMode.AUTO_APPROVE:
+                return self.BORDER_WARNING_CLASS
+            case AgentMode.PLAN:
+                return self.BORDER_PLAN_CLASS
+            case _:
+                return ""
+
     def compose(self) -> ComposeResult:
         self._completion_popup = CompletionPopup()
         yield self._completion_popup
 
-        with Vertical(
-            id=self.ID_INPUT_BOX, classes="border-warning" if self._show_warning else ""
-        ):
+        with Vertical(id=self.ID_INPUT_BOX, classes=self._get_border_class()):
             self._body = ChatInputBody(history_file=self._history_file, id="input-body")
 
             yield self._body
@@ -147,11 +161,22 @@ class ChatInputContainer(Vertical):
         event.stop()
         self.post_message(self.Submitted(event.value))
 
-    def set_show_warning(self, show_warning: bool) -> None:
-        self._show_warning = show_warning
+    def set_show_warning(self, mode: bool | AgentMode) -> None:
+        """Update the border styling based on mode.
+
+        Args:
+            mode: AgentMode or bool (for backward compatibility)
+        """
+        # Support both bool and AgentMode
+        if isinstance(mode, AgentMode):
+            self._mode = mode
+        else:
+            self._mode = AgentMode.AUTO_APPROVE if mode else AgentMode.INTERACTIVE
 
         input_box = self.get_widget_by_id(self.ID_INPUT_BOX)
-        if show_warning:
-            input_box.add_class(self.BORDER_WARNING_CLASS)
-        else:
-            input_box.remove_class(self.BORDER_WARNING_CLASS)
+        # Remove all border classes first
+        input_box.remove_class(self.BORDER_WARNING_CLASS, self.BORDER_PLAN_CLASS)
+        # Add the appropriate class
+        border_class = self._get_border_class()
+        if border_class:
+            input_box.add_class(border_class)

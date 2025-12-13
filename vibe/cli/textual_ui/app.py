@@ -32,6 +32,7 @@ from vibe.cli.textual_ui.widgets.messages import (
 )
 from vibe.cli.textual_ui.widgets.mode_indicator import ModeIndicator
 from vibe.cli.textual_ui.widgets.path_display import PathDisplay
+from vibe.cli.textual_ui.widgets.plan_approval import PlanApprovalWidget
 from vibe.cli.textual_ui.widgets.tools import ToolCallMessage, ToolResultMessage
 from vibe.cli.textual_ui.widgets.welcome import WelcomeBanner
 from vibe.cli.update_notifier import (
@@ -46,7 +47,7 @@ from vibe.core.agent import Agent
 from vibe.core.autocompletion.path_prompt_adapter import render_path_prompt
 from vibe.core.config import HISTORY_FILE, VibeConfig
 from vibe.core.tools.base import BaseToolConfig, ToolPermission
-from vibe.core.types import LLMMessage, ResumeSessionInfo, Role
+from vibe.core.types import AgentMode, LLMMessage, ResumeSessionInfo, Role
 from vibe.core.utils import (
     ApprovalResponse,
     CancellationReason,
@@ -60,6 +61,7 @@ class BottomApp(StrEnum):
     Approval = auto()
     Config = auto()
     Input = auto()
+    PlanApproval = auto()
 
 
 class VibeApp(App):
@@ -78,6 +80,7 @@ class VibeApp(App):
         self,
         config: VibeConfig,
         auto_approve: bool = False,
+        agent_mode: AgentMode | None = None,
         enable_streaming: bool = False,
         initial_prompt: str | None = None,
         loaded_messages: list[LLMMessage] | None = None,
@@ -88,7 +91,13 @@ class VibeApp(App):
     ) -> None:
         super().__init__(**kwargs)
         self.config = config
-        self.auto_approve = auto_approve
+        # Support both agent_mode and legacy auto_approve parameter
+        if agent_mode is not None:
+            self.agent_mode = agent_mode
+        elif auto_approve:
+            self.agent_mode = AgentMode.AUTO_APPROVE
+        else:
+            self.agent_mode = AgentMode.INTERACTIVE
         self.enable_streaming = enable_streaming
         self.agent: Agent | None = None
         self._agent_running = False
@@ -134,7 +143,7 @@ class VibeApp(App):
 
         with Horizontal(id="loading-area"):
             yield Static(id="loading-area-content")
-            yield ModeIndicator(auto_approve=self.auto_approve)
+            yield ModeIndicator(mode=self.agent_mode)
 
         yield Static(id="todo-area")
 
@@ -143,7 +152,7 @@ class VibeApp(App):
                 history_file=self.history_file,
                 command_registry=self.commands,
                 id="input-container",
-                show_warning=self.auto_approve,
+                show_warning=self.agent_mode,
             )
 
         with Horizontal(id="bottom-bar"):
@@ -245,6 +254,42 @@ class VibeApp(App):
 
         if self._loading_widget and self._loading_widget.parent:
             await self._remove_loading_widget()
+
+    async def on_plan_approval_widget_plan_approved(
+        self, message: PlanApprovalWidget.PlanApproved
+    ) -> None:
+        """Handle plan approval - switch to selected mode and return to input."""
+        self.agent_mode = message.mode
+        self._sync_mode_to_ui()
+        self._sync_mode_to_agent()
+        await self._switch_to_input_app()
+
+    async def on_plan_approval_widget_revision_requested(
+        self, message: PlanApprovalWidget.RevisionRequested
+    ) -> None:
+        """Handle revision request - stay in plan mode and return to input."""
+        # Stay in plan mode, just return to input so user can provide feedback
+        await self._switch_to_input_app()
+
+    async def _switch_to_plan_approval(self) -> None:
+        """Switch to the plan approval widget."""
+        bottom_container = self.query_one("#bottom-app-container", Static)
+
+        try:
+            existing = bottom_container.query_one(PlanApprovalWidget)
+            if existing:
+                existing.focus()
+                return
+        except Exception:
+            pass
+
+        # Remove existing widgets
+        await bottom_container.remove_children()
+
+        plan_approval = PlanApprovalWidget()
+        await bottom_container.mount(plan_approval)
+        self._current_bottom_app = BottomApp.PlanApproval
+        plan_approval.focus()
 
     async def _remove_loading_widget(self) -> None:
         if self._loading_widget and self._loading_widget.parent:
@@ -411,11 +456,11 @@ class VibeApp(App):
         try:
             agent = Agent(
                 self.config,
-                auto_approve=self.auto_approve,
+                mode=self.agent_mode,
                 enable_streaming=self.enable_streaming,
             )
 
-            if not self.auto_approve:
+            if self.agent_mode != AgentMode.AUTO_APPROVE:
                 agent.approval_callback = self._approval_callback
 
             if self._loaded_messages:
@@ -825,7 +870,7 @@ class VibeApp(App):
             history_file=self.history_file,
             command_registry=self.commands,
             id="input-container",
-            show_warning=self.auto_approve,
+            show_warning=self.agent_mode,
         )
         await bottom_container.mount(chat_input_container)
         self._chat_input_container = chat_input_container
@@ -843,6 +888,8 @@ class VibeApp(App):
                     self.query_one(ConfigApp).focus()
                 case BottomApp.Approval:
                     self.query_one(ApprovalApp).focus()
+                case BottomApp.PlanApproval:
+                    self.query_one(PlanApprovalWidget).focus()
                 case app:
                     assert_never(app)
         except Exception:
@@ -924,23 +971,35 @@ class VibeApp(App):
         if self._current_bottom_app != BottomApp.Input:
             return
 
-        self.auto_approve = not self.auto_approve
+        # Cycle through modes: INTERACTIVE -> AUTO_APPROVE -> PLAN -> INTERACTIVE
+        modes = [AgentMode.INTERACTIVE, AgentMode.AUTO_APPROVE, AgentMode.PLAN]
+        current_idx = modes.index(self.agent_mode)
+        self.agent_mode = modes[(current_idx + 1) % len(modes)]
 
+        self._sync_mode_to_ui()
+        self._sync_mode_to_agent()
+        self._focus_current_bottom_app()
+
+    def _sync_mode_to_ui(self) -> None:
+        """Sync agent mode to UI components."""
         if self._mode_indicator:
-            self._mode_indicator.set_auto_approve(self.auto_approve)
+            self._mode_indicator.set_mode(self.agent_mode)
 
         if self._chat_input_container:
-            self._chat_input_container.set_show_warning(self.auto_approve)
+            self._chat_input_container.set_show_warning(self.agent_mode)
 
-        if self.agent:
-            self.agent.auto_approve = self.auto_approve
+    def _sync_mode_to_agent(self) -> None:
+        """Sync agent mode to the Agent instance."""
+        if not self.agent:
+            return
 
-            if self.auto_approve:
-                self.agent.approval_callback = None
-            else:
-                self.agent.approval_callback = self._approval_callback
+        self.agent.mode = self.agent_mode
 
-        self._focus_current_bottom_app()
+        # Set approval callback based on mode
+        if self.agent_mode == AgentMode.AUTO_APPROVE:
+            self.agent.approval_callback = None
+        else:
+            self.agent.approval_callback = self._approval_callback
 
     def action_force_quit(self) -> None:
         input_widgets = self.query(ChatInputContainer)

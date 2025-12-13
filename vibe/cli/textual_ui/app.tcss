@@ -90,6 +90,10 @@ Screen {
     &.border-warning {
         border: round $warning;
     }
+
+    &.border-plan {
+        border: round $primary;
+    }
 }
 
 #input-body {
@@ -633,6 +637,59 @@ WelcomeBanner {
     color: $foreground;
 }
 
+/* Plan Approval Widget Styles */
+#plan-approval-app {
+    width: 100%;
+    height: auto;
+    max-height: 12;
+    background: $background;
+    border: round $primary;
+    padding: 0 1;
+    margin: 0 2 1 2;
+}
+
+#plan-approval-content {
+    width: 100%;
+    height: auto;
+}
+
+.plan-approval-title {
+    height: auto;
+    text-style: bold;
+    color: $primary;
+}
+
+.plan-approval-subtitle {
+    height: auto;
+    color: $text-muted;
+}
+
+.plan-approval-option {
+    height: auto;
+    color: $foreground;
+}
+
+.plan-option-selected {
+    text-style: bold;
+
+    &.plan-option-auto {
+        color: $warning;
+    }
+
+    &.plan-option-manual {
+        color: $success;
+    }
+
+    &.plan-option-revise {
+        color: $primary;
+    }
+}
+
+.plan-approval-help {
+    height: auto;
+    color: $text-muted;
+}
+
 .code-block {
     height: auto;
     color: $foreground;
@@ -660,6 +717,10 @@ ModeIndicator {
 
     &.mode-off {
         color: $text-muted;
+    }
+
+    &.mode-plan {
+        color: $primary;
     }
 }
 
