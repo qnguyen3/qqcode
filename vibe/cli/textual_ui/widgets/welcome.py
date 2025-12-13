@@ -43,8 +43,9 @@ class LineAnimationState:
 
 class WelcomeBanner(Static):
     FLASH_COLOR = "#FFFFFF"
-    TARGET_COLORS = ("#FFD800", "#FFAF00", "#FF8205", "#FA500F", "#E10500")
-    BORDER_TARGET_COLOR = "#b05800"
+    # Vice City gradient: hot pink → purple → cyan
+    TARGET_COLORS = ("#ff0090", "#ff4db4", "#cc66cc", "#669aee", "#00ceff")
+    BORDER_TARGET_COLOR = "#9980dd"
 
     LINE_ANIMATION_DURATION_MS = 200
     LINE_STAGGER_MS = 280
@@ -104,8 +105,8 @@ class WelcomeBanner(Static):
         self._static_line5_suffix = (
             f"{self.LOGO_TEXT_GAP}[dim]{self.config.effective_workdir}[/]"
         )
-        block = (self.SPACE * 4) + self.LOGO_TEXT_GAP
-        self._static_line7 = f"{block}[dim]Type[/] [{self.BORDER_TARGET_COLOR}]/help[/] [dim]for more information[/]"
+        block = (self.SPACE * 6) + self.LOGO_TEXT_GAP
+        self._static_line7 = f"{block}[dim]Type[/] [#ff0090]/help[/] [dim]for more information[/]"
 
     @property
     def skeleton_color(self) -> str:
@@ -273,11 +274,17 @@ class WelcomeBanner(Static):
         B = self.BLOCK
         S = self.SPACE
 
+        # QQ logo - two Q letters side by side
+        #   ▇▇▇▇      ▇▇▇▇
+        # ▇▇    ▇▇  ▇▇    ▇▇
+        # ▇▇    ▇▇  ▇▇    ▇▇
+        # ▇▇  ▇▇▇▇  ▇▇  ▇▇▇▇
+        #   ▇▇▇▇▇▇    ▇▇▇▇▇▇
         patterns = [
-            f"{S}[{color}]{B}[/]{S}{S}{S}[{color}]{B}[/]{S}{self._static_line1_suffix}",
-            f"{S}[{color}]{B}{B}[/]{S}[{color}]{B}{B}[/]{S}{self._static_line2_suffix}",
-            f"{S}[{color}]{B}{B}{B}{B}{B}[/]{S}{self._static_line3_suffix}",
-            f"{S}[{color}]{B}[/]{S}[{color}]{B}[/]{S}[{color}]{B}[/]{S}",
-            f"[{color}]{B}{B}{B}[/]{S}[{color}]{B}{B}{B}[/]{self._static_line5_suffix}",
+            f"{S}[{color}]{B}{B}[/]{S}{S}{S}[{color}]{B}{B}[/]{S}{self._static_line1_suffix}",
+            f"[{color}]{B}[/]{S}{S}[{color}]{B}[/]{S}[{color}]{B}[/]{S}{S}[{color}]{B}[/]{self._static_line2_suffix}",
+            f"[{color}]{B}[/]{S}{S}[{color}]{B}[/]{S}[{color}]{B}[/]{S}{S}[{color}]{B}[/]{self._static_line3_suffix}",
+            f"[{color}]{B}[/]{S}[{color}]{B}{B}[/]{S}[{color}]{B}[/]{S}[{color}]{B}{B}[/]",
+            f"{S}[{color}]{B}{B}{B}[/]{S}{S}[{color}]{B}{B}{B}[/]{self._static_line5_suffix}",
         ]
         return patterns[line_idx]
