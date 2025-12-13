@@ -27,5 +27,10 @@ Step-by-step approach to implement the changes
 ### Considerations
 Any edge cases, risks, or alternative approaches to consider
 
----
-After presenting your plan, wait for the user to approve before proceeding with implementation.
+## Exiting Plan Mode
+
+When you have completed your plan, call the `exit_plan_mode` tool.
+The user will then choose how to proceed with execution:
+- Execute with auto-approve (run the plan automatically)
+- Execute with manual approval (review each step)
+- Revise the plan (provide feedback to improve it)

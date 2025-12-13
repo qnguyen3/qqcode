@@ -264,6 +264,12 @@ class CompactEndEvent(BaseEvent):
     summary_length: int
 
 
+class ModeChangedEvent(BaseEvent):
+    """Emitted when agent mode changes via tool."""
+
+    new_mode: AgentMode
+
+
 class OutputFormat(StrEnum):
     TEXT = auto()
     JSON = auto()

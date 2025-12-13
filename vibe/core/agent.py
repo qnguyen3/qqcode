@@ -45,6 +45,7 @@ from vibe.core.types import (
     CompactStartEvent,
     LLMChunk,
     LLMMessage,
+    ModeChangedEvent,
     Role,
     SyncApprovalCallback,
     ToolCall,
@@ -61,8 +62,8 @@ from vibe.core.utils import (
     is_user_cancellation_event,
 )
 
-# Tools allowed in Plan Mode (read-only operations)
-PLAN_MODE_ALLOWED_TOOLS = frozenset({"read_file", "grep", "todo"})
+# Tools allowed in Plan Mode (read-only operations + exit_plan_mode)
+PLAN_MODE_ALLOWED_TOOLS = frozenset({"read_file", "grep", "todo", "exit_plan_mode"})
 
 
 class ToolExecutionResponse(StrEnum):
@@ -348,7 +349,7 @@ class Agent:
 
     async def _perform_llm_turn(
         self,
-    ) -> AsyncGenerator[AssistantEvent | ToolCallEvent | ToolResultEvent]:
+    ) -> AsyncGenerator[AssistantEvent | ToolCallEvent | ToolResultEvent | ModeChangedEvent]:
         if self.enable_streaming:
             async for event in self._stream_assistant_events():
                 yield event
@@ -476,7 +477,7 @@ class Agent:
 
     async def _handle_tool_calls(  # noqa: PLR0915
         self, resolved: ResolvedMessage
-    ) -> AsyncGenerator[ToolCallEvent | ToolResultEvent]:
+    ) -> AsyncGenerator[ToolCallEvent | ToolResultEvent | ModeChangedEvent]:
         for failed in resolved.failed_calls:
             error_msg = f"<{TOOL_ERROR_TAG}>{failed.tool_name}: {failed.error}</{TOOL_ERROR_TAG}>"
 
@@ -580,6 +581,14 @@ class Agent:
                 )
 
                 self.stats.tool_calls_succeeded += 1
+
+                # Check for mode change signals in tool result
+                if (
+                    hasattr(result_model, "mode_change")
+                    and result_model.mode_change == "plan"
+                ):
+                    self._mode = AgentMode.PLAN
+                    yield ModeChangedEvent(new_mode=AgentMode.PLAN)
 
             except asyncio.CancelledError:
                 cancel = str(

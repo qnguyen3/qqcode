@@ -47,7 +47,13 @@ from vibe.core.agent import Agent
 from vibe.core.autocompletion.path_prompt_adapter import render_path_prompt
 from vibe.core.config import HISTORY_FILE, VibeConfig
 from vibe.core.tools.base import BaseToolConfig, ToolPermission
-from vibe.core.types import AgentMode, LLMMessage, ResumeSessionInfo, Role
+from vibe.core.types import (
+    AgentMode,
+    LLMMessage,
+    ModeChangedEvent,
+    ResumeSessionInfo,
+    Role,
+)
 from vibe.core.utils import (
     ApprovalResponse,
     CancellationReason,
@@ -258,11 +264,23 @@ class VibeApp(App):
     async def on_plan_approval_widget_plan_approved(
         self, message: PlanApprovalWidget.PlanApproved
     ) -> None:
-        """Handle plan approval - switch to selected mode and return to input."""
+        """Handle plan approval - switch to selected mode and continue with implementation."""
         self.agent_mode = message.mode
+        # First switch back to input (mounts ChatInputContainer)
+        await self._switch_to_input_app()
+        # Then sync mode to UI and agent (ChatInputContainer now exists)
         self._sync_mode_to_ui()
         self._sync_mode_to_agent()
-        await self._switch_to_input_app()
+
+        # Send continuation message to agent to start implementation
+        if self.agent and not self._agent_running:
+            continuation_msg = (
+                "The user has approved your plan. "
+                "Please proceed with the implementation."
+            )
+            self._agent_task = asyncio.create_task(
+                self._handle_agent_turn(continuation_msg)
+            )
 
     async def on_plan_approval_widget_revision_requested(
         self, message: PlanApprovalWidget.RevisionRequested
@@ -535,6 +553,12 @@ class VibeApp(App):
                         max_tokens=current_state.max_tokens,
                         current_tokens=self.agent.stats.context_tokens,
                     )
+
+                # Handle mode change events directly (from enter_plan_mode tool)
+                if isinstance(event, ModeChangedEvent):
+                    self.agent_mode = event.new_mode
+                    self._sync_mode_to_ui()
+                    continue
 
                 if self.event_handler:
                     await self.event_handler.handle_event(
@@ -855,6 +879,12 @@ class VibeApp(App):
         try:
             approval_app = self.query_one("#approval-app")
             await approval_app.remove()
+        except Exception:
+            pass
+
+        try:
+            plan_approval = self.query_one("#plan-approval-app")
+            await plan_approval.remove()
         except Exception:
             pass
 
