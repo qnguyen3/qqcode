@@ -11,6 +11,8 @@ Vibe loads configuration from:
 - `./.vibe/config.toml` (if present in the current project or any parent directory)
 - otherwise `~/.vibe/config.toml`
 
+If multiple `./.vibe/config.toml` files exist in parent directories, the **closest one to your current directory wins**.
+
 ### Provider fields
 
 A provider is defined by `ProviderConfig` (see `core/config.py`):
@@ -29,9 +31,12 @@ A model is defined by `ModelConfig` (see `core/config.py`):
 - `provider`: must match a `providers[].name`
 - `alias`: friendly name you select via `active_model`
 - `temperature` (optional)
-- `extra_body` (optional): extra JSON merged into the request payload (provider/model specific)
+- `input_price` / `output_price` (optional): price per million tokens (used for session cost estimates)
+- `extra_body` (optional): extra JSON **merged into the request payload** (provider/model specific)
 
-### Example `config.toml`
+### Examples
+
+#### A) OpenAI-compatible provider (generic)
 
 ```toml
 # ~/.vibe/config.toml or ./.vibe/config.toml
@@ -42,14 +47,48 @@ active_model = "myprovider/my-model"
 name = "myprovider"
 api_base = "https://api.myprovider.com/v1"
 api_key_env_var = "MYPROVIDER_API_KEY"
-backend = "GENERIC"      # use HTTPX + OpenAI-style chat completions
-api_style = "openai"     # default; can be omitted
+backend = "GENERIC"
+# api_style = "openai"  # default
 
 [[models]]
 name = "my-model-id"
 provider = "myprovider"
 alias = "myprovider/my-model"
-# extra_body = { some_provider_flag = true }
+```
+
+#### B) OpenRouter
+
+```toml
+active_model = "openrouter/gpt-5.2:medium"
+
+[[providers]]
+name = "openrouter"
+api_base = "https://openrouter.ai/api/v1"
+api_key_env_var = "OPENROUTER_API_KEY"
+backend = "GENERIC"
+
+[[models]]
+name = "openai/gpt-5.2"
+provider = "openrouter"
+alias = "openrouter/gpt-5.2:medium"
+extra_body = { reasoning = { effort = "medium" } }
+```
+
+#### C) Local llama.cpp server
+
+```toml
+active_model = "local"
+
+[[providers]]
+name = "llamacpp"
+api_base = "http://127.0.0.1:8080/v1"
+api_key_env_var = ""  # no key required by default
+backend = "GENERIC"
+
+[[models]]
+name = "devstral"
+provider = "llamacpp"
+alias = "local"
 ```
 
 ## 2) Set the API key
@@ -64,6 +103,12 @@ Example:
 ```sh
 export MYPROVIDER_API_KEY="..."
 ```
+
+## Troubleshooting
+
+- **Missing API key**: if you configured `api_key_env_var`, make sure it is set in your shell env, or add it to `~/.vibe/.env`.
+- **Wrong backend**: `https://api.mistral.ai` and `https://codestral.mistral.ai` must use `backend = "MISTRAL"`. Everything else should use `backend = "GENERIC"`.
+- **Provider isn’t OpenAI-compatible**: start with `backend = "GENERIC"`, but you may need a custom `api_style` adapter or a new backend (see next section).
 
 ## 3) When you need code changes
 
