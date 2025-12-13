@@ -158,19 +158,6 @@ ThemeSelectionScreen #enter-hint {
     text-align: center;
 }
 
-#provider-hint {
-    color: $text-muted;
-    margin-bottom: 1;
-}
-
-#provider {
-    border: round #555555;
-    padding: 0 2;
-    width: auto;
-    margin-bottom: 2;
-    text-style: bold;
-}
-
 .link-row {
     width: auto;
     height: auto;
