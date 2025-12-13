@@ -65,6 +65,9 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
+
+# Textual snapshot failure report (generated locally / in CI artifacts)
+snapshot_report.html
 .tox/
 .nox/
 .coverage
