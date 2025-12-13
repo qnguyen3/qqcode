@@ -5,7 +5,7 @@ import asyncio
 from vibe.core.agent import Agent
 from vibe.core.config import VibeConfig
 from vibe.core.output_formatters import create_formatter
-from vibe.core.types import AssistantEvent, LLMMessage, OutputFormat, Role
+from vibe.core.types import AgentMode, AssistantEvent, LLMMessage, OutputFormat, Role
 from vibe.core.utils import ConversationLimitException, logger
 
 
@@ -16,7 +16,7 @@ def run_programmatic(
     max_price: float | None = None,
     output_format: OutputFormat = OutputFormat.TEXT,
     previous_messages: list[LLMMessage] | None = None,
-    auto_approve: bool = True,
+    auto_approve: bool = False,
 ) -> str | None:
     """Run in programmatic mode: execute prompt and return the assistant response.
 
@@ -36,7 +36,7 @@ def run_programmatic(
 
     agent = Agent(
         config,
-        auto_approve=auto_approve,
+        mode=AgentMode.AUTO_APPROVE if auto_approve else AgentMode.PLAN,
         message_observer=formatter.on_message_added,
         max_turns=max_turns,
         max_price=max_price,

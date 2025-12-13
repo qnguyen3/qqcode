@@ -36,8 +36,8 @@ def parse_arguments() -> argparse.Namespace:
         nargs="?",
         const="",
         metavar="TEXT",
-        help="Run in programmatic mode: send prompt, auto-approve all tools, "
-        "output response, and exit.",
+        help="Run in programmatic mode: send prompt (read-only by default), "
+        "output response, and exit. Use --auto-approve to allow tool execution.",
     )
     parser.add_argument(
         "--auto-approve",
@@ -232,6 +232,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                     max_price=args.max_price,
                     output_format=output_format,
                     previous_messages=loaded_messages,
+                    auto_approve=args.auto_approve,
                 )
                 if final_response:
                     print(final_response)
