@@ -350,6 +350,9 @@ class VibeApp(App):
                 case "textual_theme":
                     if value != self.config.textual_theme:
                         updates["textual_theme"] = value
+                case "active_provider":
+                    # Provider is implied by the chosen model and is not persisted.
+                    pass
 
         if updates:
             VibeConfig.save_updates(updates)

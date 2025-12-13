@@ -52,13 +52,34 @@ class ConfigApp(Container):
         self.selected_index = 0
         self.changes: dict[str, str] = {}
 
+        provider_options = self._provider_options()
+        inferred_provider = self._infer_active_provider()
+        if inferred_provider not in provider_options and provider_options:
+            inferred_provider = provider_options[0]
+
+        model_options = self._model_options_for_provider(inferred_provider)
+
+        # If the configured active model doesn't match the selected provider,
+        # default to the first available model for that provider.
+        initial_model = self.config.active_model
+        if model_options and initial_model not in model_options:
+            initial_model = model_options[0]
+            self.changes["active_model"] = initial_model
+
         self.settings: list[SettingDefinition] = [
+            {
+                "key": "active_provider",
+                "label": "Provider",
+                "type": "cycle",
+                "options": provider_options,
+                "value": inferred_provider,
+            },
             {
                 "key": "active_model",
                 "label": "Model",
                 "type": "cycle",
-                "options": [m.alias for m in self.config.models],
-                "value": self.config.active_model,
+                "options": model_options,
+                "value": initial_model,
             },
             {
                 "key": "textual_theme",
@@ -93,8 +114,72 @@ class ConfigApp(Container):
             yield self.help_widget
 
     def on_mount(self) -> None:
+        self._sync_model_options_and_selection(post_messages=False)
         self._update_display()
         self.focus()
+
+    def _get_setting(self, key: str) -> SettingDefinition:
+        for setting in self.settings:
+            if setting["key"] == key:
+                return setting
+        raise KeyError(f"Setting not found: {key}")
+
+    def _get_value(self, key: str) -> str:
+        setting = self._get_setting(key)
+        return self.changes.get(key, setting["value"])
+
+    def _provider_options(self) -> list[str]:
+        providers_with_models = {m.provider for m in self.config.models}
+        options = [
+            p.name for p in self.config.providers if p.name in providers_with_models
+        ]
+
+        # If configuration is inconsistent (providers with 0 configured models),
+        # fall back to listing all providers so users can still see them.
+        if not options:
+            options = [p.name for p in self.config.providers]
+
+        # Deduplicate while preserving order.
+        seen: set[str] = set()
+        unique: list[str] = []
+        for name in options:
+            if name not in seen:
+                seen.add(name)
+                unique.append(name)
+        return unique
+
+    def _infer_active_provider(self) -> str:
+        try:
+            return self.config.get_active_model().provider
+        except Exception:
+            options = self._provider_options()
+            return options[0] if options else ""
+
+    def _model_options_for_provider(self, provider: str) -> list[str]:
+        return [m.alias for m in self.config.models if m.provider == provider]
+
+    def _sync_model_options_and_selection(self, *, post_messages: bool) -> None:
+        """Ensure Model options match selected Provider and selection is valid."""
+        try:
+            provider = self._get_value("active_provider")
+            model_setting = self._get_setting("active_model")
+        except KeyError:
+            return
+
+        options = self._model_options_for_provider(provider)
+        model_setting["options"] = options
+
+        if not options:
+            return
+
+        current_model = self._get_value("active_model")
+        if current_model in options:
+            return
+
+        new_model = options[0]
+        self.changes["active_model"] = new_model
+        if post_messages:
+            self.post_message(self.SettingChanged(key="active_model", value=new_model))
 
     def _update_display(self) -> None:
         for i, (setting, widget) in enumerate(
@@ -130,6 +215,11 @@ class ConfigApp(Container):
     def action_toggle_setting(self) -> None:
         setting = self.settings[self.selected_index]
         key: str = setting["key"]
+
+        # Provider drives the available model list; ensure it's always synced before cycling.
+        if key == "active_model":
+            self._sync_model_options_and_selection(post_messages=False)
+
         current: str = self.changes.get(key, setting["value"])
 
         options: list[str] = setting["options"]
@@ -141,8 +231,11 @@ class ConfigApp(Container):
             new_value: str = options[0] if options else current
 
         self.changes[key] = new_value
-
         self.post_message(self.SettingChanged(key=key, value=new_value))
+
+        if key == "active_provider":
+            # Update model options + ensure selected model is valid for provider.
+            self._sync_model_options_and_selection(post_messages=True)
 
         self._update_display()
 
