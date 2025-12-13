@@ -385,10 +385,14 @@ class Agent:
             yield event
 
     def _create_assistant_event(
-        self, content: str, chunk: LLMChunk | None
+        self,
+        content: str,
+        chunk: LLMChunk | None,
+        reasoning_content: str | None = None,
     ) -> AssistantEvent:
         return AssistantEvent(
             content=content,
+            reasoning_content=reasoning_content,
             prompt_tokens=chunk.usage.prompt_tokens if chunk and chunk.usage else 0,
             completion_tokens=chunk.usage.completion_tokens
             if chunk and chunk.usage
@@ -401,11 +405,22 @@ class Agent:
     async def _stream_assistant_events(self) -> AsyncGenerator[AssistantEvent]:
         chunks: list[LLMChunk] = []
         content_buffer = ""
+        reasoning_buffer = ""
         chunks_with_content = 0
         BATCH_SIZE = 5
 
         async for chunk in self._chat_streaming():
             chunks.append(chunk)
+
+            # Handle reasoning/thinking content
+            if chunk.message.reasoning_content:
+                reasoning_buffer += chunk.message.reasoning_content
+                # Yield reasoning content immediately (don't batch)
+                yield self._create_assistant_event(
+                    "", chunk, reasoning_content=reasoning_buffer
+                )
+                reasoning_buffer = ""
+                continue
 
             if chunk.message.tool_calls and chunk.finish_reason is None:
                 if chunk.message.content:
@@ -432,9 +447,13 @@ class Agent:
             yield self._create_assistant_event(content_buffer, last_chunk)
 
         full_content = ""
+        full_reasoning_content = ""
+        full_thinking_signature = ""
         full_tool_calls_map = OrderedDict[int, ToolCall]()
         for chunk in chunks:
             full_content += chunk.message.content or ""
+            full_reasoning_content += chunk.message.reasoning_content or ""
+            full_thinking_signature += chunk.message.thinking_signature or ""
             if not chunk.message.tool_calls:
                 continue
 
@@ -451,7 +470,11 @@ class Agent:
 
         full_tool_calls = list(full_tool_calls_map.values()) or None
         last_message = LLMMessage(
-            role=Role.assistant, content=full_content, tool_calls=full_tool_calls
+            role=Role.assistant,
+            content=full_content,
+            reasoning_content=full_reasoning_content or None,
+            thinking_signature=full_thinking_signature or None,
+            tool_calls=full_tool_calls,
         )
         self.messages.append(last_message)
         finish_reason = next(

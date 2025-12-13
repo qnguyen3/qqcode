@@ -108,7 +108,9 @@ class EventHandler:
         self.current_tool_call = None
 
     async def _handle_assistant_message(self, event: AssistantEvent) -> None:
-        await self.mount_callback(AssistantMessage(event.content))
+        await self.mount_callback(
+            AssistantMessage(event.content, reasoning_content=event.reasoning_content)
+        )
 
     async def _handle_compact_start(self) -> None:
         compact_msg = CompactMessage()

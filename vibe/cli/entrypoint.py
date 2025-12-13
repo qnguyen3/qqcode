@@ -84,6 +84,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Load agent configuration from ~/.vibe/agents/NAME.toml",
     )
     parser.add_argument("--setup", action="store_true", help="Setup API key and exit")
+    parser.add_argument(
+        "--login",
+        metavar="PROVIDER",
+        choices=["anthropic"],
+        help="Login to a provider using OAuth (e.g., --login anthropic)",
+    )
 
     continuation_group = parser.add_mutually_exclusive_group()
     continuation_group.add_argument(
@@ -136,6 +142,13 @@ def main() -> None:  # noqa: PLR0912, PLR0915
 
     if args.setup:
         run_onboarding()
+        sys.exit(0)
+
+    if args.login:
+        if args.login == "anthropic":
+            from vibe.cli.login import login_anthropic
+
+            login_anthropic()
         sys.exit(0)
     try:
         if not CONFIG_FILE.exists():

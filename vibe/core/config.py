@@ -19,6 +19,7 @@ from pydantic_settings import (
 )
 import tomli_w
 
+from vibe.core.oauth.token import OAuthToken
 from vibe.core.prompts import SystemPrompt
 from vibe.core.tools.base import BaseToolConfig
 
@@ -146,6 +147,7 @@ class SessionLoggingConfig(BaseSettings):
 class Backend(StrEnum):
     MISTRAL = auto()
     GENERIC = auto()
+    ANTHROPIC = auto()
 
 
 class ProviderConfig(BaseModel):
@@ -154,6 +156,8 @@ class ProviderConfig(BaseModel):
     api_key_env_var: str = ""
     api_style: str = "openai"
     backend: Backend = Backend.GENERIC
+    oauth_token: OAuthToken | None = None
+    extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
 class _MCPBase(BaseModel):
@@ -273,6 +277,13 @@ DEFAULT_PROVIDERS = [
         api_base="https://openrouter.ai/api/v1",
         api_key_env_var="OPENROUTER_API_KEY",
     ),
+    ProviderConfig(
+        name="anthropic",
+        api_base="https://api.anthropic.com/v1",
+        api_key_env_var="ANTHROPIC_API_KEY",
+        api_style="anthropic",
+        backend=Backend.ANTHROPIC,
+    ),
 ]
 
 DEFAULT_MODELS = [
@@ -327,6 +338,40 @@ DEFAULT_MODELS = [
         provider="openrouter",
         alias="openrouter/gpt-5.2:xhigh",
         extra_body={"reasoning": {"effort": "xhigh"}},
+    ),
+    # Anthropic Claude models (via Claude Max subscription OAuth)
+    ModelConfig(
+        name="claude-sonnet-4-5-20250929",
+        provider="anthropic",
+        alias="claude-sonnet",
+    ),
+    ModelConfig(
+        name="claude-sonnet-4-5-20250929",
+        provider="anthropic",
+        alias="claude-sonnet:thinking",
+        extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
+    ),
+    ModelConfig(
+        name="claude-haiku-4-5-20251001",
+        provider="anthropic",
+        alias="claude-haiku",
+    ),
+    ModelConfig(
+        name="claude-haiku-4-5-20251001",
+        provider="anthropic",
+        alias="claude-haiku:thinking",
+        extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
+    ),
+    ModelConfig(
+        name="claude-opus-4-5-20251101",
+        provider="anthropic",
+        alias="claude-opus",
+    ),
+    ModelConfig(
+        name="claude-opus-4-5-20251101",
+        provider="anthropic",
+        alias="claude-opus:thinking",
+        extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
 ]
 
@@ -446,10 +491,39 @@ class VibeConfig(BaseSettings):
         )
 
     @model_validator(mode="after")
+    def _merge_default_providers(self) -> VibeConfig:
+        """Ensure DEFAULT_PROVIDERS are always available, merged with user providers."""
+        # Get names from user-configured providers
+        user_provider_names = {p.name for p in self.providers}
+
+        # Add any DEFAULT_PROVIDERS that aren't already configured
+        for default_provider in DEFAULT_PROVIDERS:
+            if default_provider.name not in user_provider_names:
+                self.providers.append(default_provider)
+
+        return self
+
+    @model_validator(mode="after")
+    def _merge_default_models(self) -> VibeConfig:
+        """Ensure DEFAULT_MODELS are always available, merged with user models."""
+        # Get aliases from user-configured models
+        user_aliases = {m.alias for m in self.models}
+
+        # Add any DEFAULT_MODELS that aren't already configured
+        for default_model in DEFAULT_MODELS:
+            if default_model.alias not in user_aliases:
+                self.models.append(default_model)
+
+        return self
+
+    @model_validator(mode="after")
     def _check_api_key(self) -> VibeConfig:
         try:
             active_model = self.get_active_model()
             provider = self.get_provider_for_model(active_model)
+            # Skip API key check if OAuth token exists and is not expired
+            if provider.oauth_token and not provider.oauth_token.is_expired():
+                return self
             api_key_env = provider.api_key_env_var
             if api_key_env and not os.getenv(api_key_env):
                 raise MissingAPIKeyError(api_key_env, provider.name)
@@ -466,11 +540,29 @@ class VibeConfig(BaseSettings):
                 "https://codestral.mistral.ai",
                 "https://api.mistral.ai",
             ]
+            ANTHROPIC_API_BASES = [
+                "https://api.anthropic.com",
+            ]
             is_mistral_api = any(
                 provider.api_base.startswith(api_base) for api_base in MISTRAL_API_BASES
             )
-            if (is_mistral_api and provider.backend != Backend.MISTRAL) or (
-                not is_mistral_api and provider.backend != Backend.GENERIC
+            is_anthropic_api = any(
+                provider.api_base.startswith(api_base)
+                for api_base in ANTHROPIC_API_BASES
+            )
+
+            # Check backend compatibility
+            if is_mistral_api and provider.backend != Backend.MISTRAL:
+                raise WrongBackendError(provider.backend, is_mistral_api)
+            elif is_anthropic_api and provider.backend not in (
+                Backend.ANTHROPIC,
+                Backend.GENERIC,
+            ):
+                raise WrongBackendError(provider.backend, is_mistral_api)
+            elif (
+                not is_mistral_api
+                and not is_anthropic_api
+                and provider.backend not in (Backend.GENERIC,)
             ):
                 raise WrongBackendError(provider.backend, is_mistral_api)
 
@@ -621,3 +713,40 @@ class VibeConfig(BaseSettings):
             config_dict["tools"] = tool_defaults
 
         return config_dict
+
+
+def save_oauth_token(provider_name: str, token: OAuthToken) -> None:
+    """Save an OAuth token to the config file for a specific provider.
+
+    Args:
+        provider_name: The name of the provider (e.g., "anthropic").
+        token: The OAuthToken to save.
+    """
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    current_config = TomlFileSettingsSource(VibeConfig).toml_data
+
+    # Find the provider in the providers list and update its oauth_token
+    providers = current_config.get("providers", [])
+    provider_found = False
+    for provider in providers:
+        if provider.get("name") == provider_name:
+            provider["oauth_token"] = token.model_dump()
+            provider_found = True
+            break
+
+    # If provider not found, add it
+    if not provider_found:
+        # Find the default provider config
+        default_provider = None
+        for p in DEFAULT_PROVIDERS:
+            if p.name == provider_name:
+                default_provider = p
+                break
+
+        if default_provider:
+            provider_dict = default_provider.model_dump(exclude_none=True)
+            provider_dict["oauth_token"] = token.model_dump()
+            providers.append(provider_dict)
+            current_config["providers"] = providers
+
+    VibeConfig.dump_config(current_config)

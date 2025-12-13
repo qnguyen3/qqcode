@@ -2,35 +2,49 @@ from __future__ import annotations
 
 import os
 from typing import ClassVar
+import webbrowser
 
 from dotenv import set_key
+from rich.markup import escape
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Center, Horizontal, Vertical
 from textual.events import MouseUp
 from textual.validation import Length
-from textual.widgets import Input, Link, Static
+from textual.widgets import Button, Input, Link, Static
 
 from vibe.cli.clipboard import copy_selection_to_clipboard
-from vibe.core.config import GLOBAL_ENV_FILE, ProviderConfig, VibeConfig
+from vibe.core.config import (
+    GLOBAL_ENV_FILE,
+    ProviderConfig,
+    VibeConfig,
+    save_oauth_token,
+)
+from vibe.core.oauth import exchange_token, get_authorize_url, get_pkce_challenge
 from vibe.setup.onboarding.base import OnboardingScreen
 
 PROVIDER_HELP = {
     "mistral": ("https://console.mistral.ai/codestral/vibe", "Mistral AI Console"),
     "openrouter": ("https://openrouter.ai/keys", "OpenRouter Dashboard"),
+    "anthropic": ("https://console.anthropic.com/settings/keys", "Anthropic Console"),
 }
 
 PROVIDER_DISPLAY_NAMES = {
     "mistral": "Mistral",
     "openrouter": "OpenRouter",
     "llamacpp": "Local (llama.cpp)",
+    "anthropic": "Anthropic (Subscription)",
 }
 
 DEFAULT_MODELS_BY_PROVIDER = {
     "mistral": "devstral-2",
     "openrouter": "openrouter/gpt-5.2",
     "llamacpp": "local",
+    "anthropic": "claude-sonnet",
 }
+
+# Providers that support OAuth login
+OAUTH_PROVIDERS = {"anthropic"}
 
 CONFIG_DOCS_URL = (
     "https://github.com/mistralai/mistral-vibe?tab=readme-ov-file#configuration"
@@ -62,6 +76,8 @@ class ApiKeyScreen(OnboardingScreen):
         self.providers = list(self.config.providers)
         self._provider_index = 0
         self._provider_widgets: list[Static] = []
+        self._oauth_verifier: str | None = None
+        self._oauth_mode = False  # Whether we're in OAuth mode for Anthropic
 
         # Set initial selection based on current active model
         active_model = self.config.get_active_model()
@@ -78,6 +94,10 @@ class ApiKeyScreen(OnboardingScreen):
     @property
     def needs_api_key(self) -> bool:
         return bool((self.provider.api_key_env_var or "").strip())
+
+    @property
+    def supports_oauth(self) -> bool:
+        return self.provider.name in OAUTH_PROVIDERS
 
     def _get_display_name(self, provider: ProviderConfig) -> str:
         return PROVIDER_DISPLAY_NAMES.get(provider.name, provider.name.capitalize())
@@ -152,6 +172,22 @@ class ApiKeyScreen(OnboardingScreen):
                             id="local-hint",
                         )
 
+                    # OAuth section for Anthropic
+                    with Vertical(id="oauth-section", classes="hidden"):
+                        yield Static(
+                            "Login with your Claude Max subscription:", id="oauth-title"
+                        )
+                        yield Center(
+                            Button("Login with Claude Max", id="oauth-login-btn", variant="primary"),
+                        )
+                        yield Static("", id="oauth-status")
+                        yield Static(
+                            "[dim]Or use an API key instead:[/dim]", id="oauth-or-text"
+                        )
+                        yield Center(
+                            Button("Use API Key", id="use-api-key-btn", variant="default"),
+                        )
+
             yield Static("", classes="spacer")
             yield Vertical(
                 Vertical(*self._compose_config_docs(), id="config-docs-group"),
@@ -185,19 +221,31 @@ class ApiKeyScreen(OnboardingScreen):
                 if FADE_CLASSES:
                     widget.add_class(FADE_CLASSES[distance])
 
-        # Toggle sections based on whether provider needs API key
+        # Toggle sections based on provider type
         api_key_section = self.query_one("#api-key-section", Vertical)
         local_section = self.query_one("#local-section", Vertical)
+        oauth_section = self.query_one("#oauth-section", Vertical)
         enter_hint = self.query_one("#enter-hint", Static)
 
-        if self.needs_api_key:
+        # Reset OAuth mode when switching providers
+        self._oauth_mode = False
+
+        if self.supports_oauth and not self._oauth_mode:
+            # Show OAuth section for Anthropic
+            api_key_section.add_class("hidden")
+            local_section.add_class("hidden")
+            oauth_section.remove_class("hidden")
+            enter_hint.update("")
+        elif self.needs_api_key:
             api_key_section.remove_class("hidden")
             local_section.add_class("hidden")
+            oauth_section.add_class("hidden")
             enter_hint.update("")
             self._update_provider_link()
         else:
             api_key_section.add_class("hidden")
             local_section.remove_class("hidden")
+            oauth_section.add_class("hidden")
             enter_hint.update("Press Enter ↵")
 
     def _update_provider_link(self) -> None:
@@ -258,6 +306,15 @@ class ApiKeyScreen(OnboardingScreen):
 
     def action_submit(self) -> None:
         """Handle Enter key - either submit API key or confirm local selection."""
+        # Check if OAuth code input exists and has focus
+        try:
+            oauth_code_input = self.query_one("#oauth-code-input", Input)
+            if oauth_code_input.has_focus and oauth_code_input.value.strip():
+                self._exchange_oauth_code(oauth_code_input.value.strip())
+                return
+        except Exception:
+            pass  # OAuth code input doesn't exist
+
         if not self.needs_api_key:
             # Local provider - no API key needed, just save selection
             self._save_provider_selection()
@@ -267,10 +324,6 @@ class ApiKeyScreen(OnboardingScreen):
             validation = self.input_widget.validate(self.input_widget.value)
             if validation and validation.is_valid:
                 self._save_and_finish(self.input_widget.value)
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.validation_result and event.validation_result.is_valid:
-            self._save_and_finish(event.value)
 
     def _save_provider_selection(self) -> None:
         """Save the active_model based on selected provider."""
@@ -301,6 +354,108 @@ class ApiKeyScreen(OnboardingScreen):
         # Save active model selection
         self._save_provider_selection()
         self.app.exit("completed")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses for OAuth flow."""
+        if event.button.id == "oauth-login-btn":
+            self._start_oauth_flow()
+        elif event.button.id == "use-api-key-btn":
+            self._switch_to_api_key_mode()
+
+    def _start_oauth_flow(self) -> None:
+        """Start the OAuth flow for Anthropic."""
+        oauth_status = self.query_one("#oauth-status", Static)
+        oauth_status.update("[dim]Opening browser for authentication...[/dim]")
+
+        # Generate PKCE challenge
+        self._oauth_verifier, challenge = get_pkce_challenge()
+        url = get_authorize_url(challenge, state=self._oauth_verifier)
+
+        # Try to open browser
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
+        # Create a new input widget for the OAuth code
+        self._show_oauth_code_input(url)
+
+    def _show_oauth_code_input(self, url: str) -> None:
+        """Show the OAuth code input field."""
+        oauth_status = self.query_one("#oauth-status", Static)
+        # Escape URL to avoid Rich markup parsing issues with special chars
+        escaped_url = escape(url[:60])
+        oauth_status.update(
+            f"[dim]If browser didn't open, visit:[/dim]\n"
+            f"{escaped_url}...\n\n"
+            "Paste the authorization code below:"
+        )
+
+        # Hide the login button and show input for code
+        login_btn = self.query_one("#oauth-login-btn", Button)
+        login_btn.add_class("hidden")
+
+        # Create code input if it doesn't exist
+        try:
+            code_input = self.query_one("#oauth-code-input", Input)
+        except Exception:
+            # Create and mount the input
+            oauth_section = self.query_one("#oauth-section", Vertical)
+            code_input = Input(
+                id="oauth-code-input",
+                placeholder="Paste authorization code here",
+            )
+            oauth_section.mount(code_input, after=oauth_status)
+
+        code_input.focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle input submission."""
+        if event.input.id == "oauth-code-input":
+            # OAuth code submitted
+            self._exchange_oauth_code(event.value)
+        elif event.validation_result and event.validation_result.is_valid:
+            self._save_and_finish(event.value)
+
+    def _exchange_oauth_code(self, code: str) -> None:
+        """Exchange OAuth code for tokens."""
+        if not self._oauth_verifier:
+            return
+
+        oauth_status = self.query_one("#oauth-status", Static)
+        oauth_status.update("[dim]Exchanging code for tokens...[/dim]")
+
+        # Run async exchange in background
+        self.run_worker(self._do_oauth_exchange(code), exclusive=True)
+
+    async def _do_oauth_exchange(self, code: str) -> None:
+        """Perform the OAuth token exchange asynchronously."""
+        oauth_status = self.query_one("#oauth-status", Static)
+
+        try:
+            token = await exchange_token(code, self._oauth_verifier or "")
+            save_oauth_token("anthropic", token)
+
+            # Save provider selection and finish
+            self._save_provider_selection()
+            self.app.exit("completed")
+
+        except Exception as e:
+            oauth_status.update(f"[red]Error: {escape(str(e))}[/red]\n\nPlease try again.")
+            # Re-show the login button
+            login_btn = self.query_one("#oauth-login-btn", Button)
+            login_btn.remove_class("hidden")
+
+    def _switch_to_api_key_mode(self) -> None:
+        """Switch from OAuth to API key mode for Anthropic."""
+        self._oauth_mode = True
+        api_key_section = self.query_one("#api-key-section", Vertical)
+        oauth_section = self.query_one("#oauth-section", Vertical)
+
+        oauth_section.add_class("hidden")
+        api_key_section.remove_class("hidden")
+        self._update_provider_link()
+        self._update_focus()
 
     def on_mouse_up(self, event: MouseUp) -> None:
         copy_selection_to_clipboard(self.app)

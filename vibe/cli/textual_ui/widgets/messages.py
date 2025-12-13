@@ -34,17 +34,24 @@ class UserMessage(Static):
 
 
 class AssistantMessage(Static):
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str, reasoning_content: str | None = None) -> None:
         super().__init__()
         self.add_class("assistant-message")
         self._content = content
+        self._reasoning_content = reasoning_content or ""
         self._markdown: Markdown | None = None
         self._stream: MarkdownStream | None = None
+        self._reasoning_widget: Static | None = None
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="assistant-message-container"):
             yield Static("● ", classes="assistant-message-dot")
             with Vertical(classes="assistant-message-content"):
+                # Reasoning content area (for thinking tokens)
+                reasoning = Static("", classes="assistant-reasoning hidden")
+                self._reasoning_widget = reasoning
+                yield reasoning
+                # Main content area
                 markdown = Markdown("")
                 self._markdown = markdown
                 yield markdown
@@ -53,6 +60,11 @@ class AssistantMessage(Static):
         if self._markdown is None:
             self._markdown = self.query_one(Markdown)
         return self._markdown
+
+    def _get_reasoning_widget(self) -> Static:
+        if self._reasoning_widget is None:
+            self._reasoning_widget = self.query_one(".assistant-reasoning", Static)
+        return self._reasoning_widget
 
     def _ensure_stream(self) -> MarkdownStream:
         if self._stream is None:
@@ -67,7 +79,20 @@ class AssistantMessage(Static):
         stream = self._ensure_stream()
         await stream.write(content)
 
+    async def append_reasoning_content(self, reasoning: str) -> None:
+        if not reasoning:
+            return
+
+        self._reasoning_content += reasoning
+        widget = self._get_reasoning_widget()
+        widget.update(self._reasoning_content)
+        widget.remove_class("hidden")
+
     async def write_initial_content(self) -> None:
+        if self._reasoning_content:
+            widget = self._get_reasoning_widget()
+            widget.update(self._reasoning_content)
+            widget.remove_class("hidden")
         if self._content:
             stream = self._ensure_stream()
             await stream.write(self._content)

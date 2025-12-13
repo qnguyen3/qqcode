@@ -1057,6 +1057,13 @@ class VibeApp(App):
 
         if isinstance(widget, AssistantMessage):
             if self._current_streaming_message is not None:
+                # Append reasoning content if present
+                reasoning = widget._reasoning_content or ""
+                if reasoning:
+                    await self._current_streaming_message.append_reasoning_content(
+                        reasoning
+                    )
+                # Append regular content if present
                 content = widget._content or ""
                 if content:
                     await self._current_streaming_message.append_content(content)

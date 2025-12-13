@@ -186,6 +186,19 @@ Markdown MarkdownFence {
     }
 }
 
+.assistant-reasoning {
+    width: 100%;
+    height: auto;
+    color: $text-muted;
+    text-style: italic;
+    padding: 0;
+    margin: 0 0 1 0;
+
+    &.hidden {
+        display: none;
+    }
+}
+
 .interrupt-message {
     margin-top: 0;
     margin-bottom: 0;

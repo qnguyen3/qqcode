@@ -186,6 +186,8 @@ class LLMMessage(BaseModel):
 
     role: Role
     content: Content | None = None
+    reasoning_content: str | None = None  # For thinking/reasoning tokens
+    thinking_signature: str | None = None  # Signature for thinking blocks (required by API)
     tool_calls: list[ToolCall] | None = None
     name: str | None = None
     tool_call_id: str | None = None
@@ -200,6 +202,8 @@ class LLMMessage(BaseModel):
         return {
             "role": str(getattr(v, "role", "assistant")),
             "content": getattr(v, "content", ""),
+            "reasoning_content": getattr(v, "reasoning_content", None),
+            "thinking_signature": getattr(v, "thinking_signature", None),
             "tool_calls": getattr(v, "tool_calls", None),
             "name": getattr(v, "name", None),
             "tool_call_id": getattr(v, "tool_call_id", None),
@@ -227,6 +231,7 @@ class BaseEvent(BaseModel, ABC):
 
 class AssistantEvent(BaseEvent):
     content: str
+    reasoning_content: str | None = None  # For thinking/reasoning tokens
     prompt_tokens: int = 0
     completion_tokens: int = 0
     session_total_tokens: int = 0
