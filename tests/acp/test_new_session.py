@@ -90,13 +90,14 @@ class TestACPNewSession:
         assert session_response.models is not None
         assert session_response.models.currentModelId is not None
         assert session_response.models.availableModels is not None
-        assert len(session_response.models.availableModels) == 2
+        # Check that our configured models are present (DEFAULT_MODELS are also merged)
+        assert len(session_response.models.availableModels) >= 2
 
         assert session_response.models.currentModelId == "devstral-latest"
-        assert session_response.models.availableModels[0].modelId == "devstral-latest"
-        assert session_response.models.availableModels[0].name == "devstral-latest"
-        assert session_response.models.availableModels[1].modelId == "devstral-small"
-        assert session_response.models.availableModels[1].name == "devstral-small"
+        # Check that our configured models are in the available models list
+        model_ids = [m.modelId for m in session_response.models.availableModels]
+        assert "devstral-latest" in model_ids
+        assert "devstral-small" in model_ids
 
         assert session_response.modes is not None
         assert session_response.modes.currentModeId is not None

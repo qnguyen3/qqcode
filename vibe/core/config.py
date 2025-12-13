@@ -36,6 +36,10 @@ GLOBAL_ENV_FILE = GLOBAL_CONFIG_DIR / ".env"
 
 
 def resolve_config_file() -> Path:
+    # If QQCODE_HOME is explicitly set, always use that config
+    if os.getenv("QQCODE_HOME"):
+        return GLOBAL_CONFIG_FILE
+
     for directory in (cwd := Path.cwd(), *cwd.parents):
         if (candidate := directory / ".qqcode" / "config.toml").is_file():
             return candidate
@@ -249,6 +253,7 @@ class ModelConfig(BaseModel):
     temperature: float = 0.2
     input_price: float = 0.0  # Price per million input tokens
     output_price: float = 0.0  # Price per million output tokens
+    context_limit: int = 200_000  # Context window size in tokens
     extra_body: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
@@ -313,30 +318,35 @@ DEFAULT_MODELS = [
         name="openai/gpt-5.2",
         provider="openrouter",
         alias="openrouter/gpt-5.2",
+        context_limit=400_000,
         extra_body={"reasoning": {"effort": "none"}},
     ),
     ModelConfig(
         name="openai/gpt-5.2",
         provider="openrouter",
         alias="openrouter/gpt-5.2:low",
+        context_limit=400_000,
         extra_body={"reasoning": {"effort": "low"}},
     ),
     ModelConfig(
         name="openai/gpt-5.2",
         provider="openrouter",
         alias="openrouter/gpt-5.2:medium",
+        context_limit=400_000,
         extra_body={"reasoning": {"effort": "medium"}},
     ),
     ModelConfig(
         name="openai/gpt-5.2",
         provider="openrouter",
         alias="openrouter/gpt-5.2:high",
+        context_limit=400_000,
         extra_body={"reasoning": {"effort": "high"}},
     ),
     ModelConfig(
         name="openai/gpt-5.2",
         provider="openrouter",
         alias="openrouter/gpt-5.2:xhigh",
+        context_limit=400_000,
         extra_body={"reasoning": {"effort": "xhigh"}},
     ),
     # Anthropic Claude models (via Claude Max subscription OAuth)
@@ -459,6 +469,16 @@ class VibeConfig(BaseSettings):
             f"Active model '{self.active_model}' not found in configuration."
         )
 
+    def get_context_limit_for_active_model(self) -> int:
+        """Return the context limit for the active model.
+
+        Falls back to auto_compact_threshold if the active model is not found.
+        """
+        try:
+            return self.get_active_model().context_limit
+        except ValueError:
+            return self.auto_compact_threshold
+
     def get_provider_for_model(self, model: ModelConfig) -> ProviderConfig:
         for provider in self.providers:
             if provider.name == model.provider:
@@ -506,6 +526,16 @@ class VibeConfig(BaseSettings):
     @model_validator(mode="after")
     def _merge_default_models(self) -> VibeConfig:
         """Ensure DEFAULT_MODELS are always available, merged with user models."""
+        # Build a lookup of default models by alias
+        default_by_alias = {m.alias: m for m in DEFAULT_MODELS}
+
+        # Update existing user models with context_limit from defaults if not explicitly set
+        for model in self.models:
+            if default_model := default_by_alias.get(model.alias):
+                # If user model has default context_limit, use the one from DEFAULT_MODELS
+                if model.context_limit == 200_000:  # noqa: PLR2004
+                    model.context_limit = default_model.context_limit
+
         # Get aliases from user-configured models
         user_aliases = {m.alias for m in self.models}
 

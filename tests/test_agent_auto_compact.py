@@ -5,7 +5,7 @@ import pytest
 from tests.mock.utils import mock_llm_chunk
 from tests.stubs.fake_backend import FakeBackend
 from vibe.core.agent import Agent
-from vibe.core.config import SessionLoggingConfig, VibeConfig
+from vibe.core.config import ModelConfig, SessionLoggingConfig, VibeConfig
 from vibe.core.types import (
     AssistantEvent,
     CompactEndEvent,
@@ -26,8 +26,17 @@ async def test_auto_compact_triggers_and_batches_observer() -> None:
         mock_llm_chunk(content="<summary>"),
         mock_llm_chunk(content="<final>"),
     ])
+    # Create a model with a low context_limit to trigger compaction
+    test_model = ModelConfig(
+        name="test-model",
+        provider="mistral",
+        alias="test-compact",
+        context_limit=1,
+    )
     cfg = VibeConfig(
-        session_logging=SessionLoggingConfig(enabled=False), auto_compact_threshold=1
+        session_logging=SessionLoggingConfig(enabled=False),
+        active_model="test-compact",
+        models=[test_model],
     )
     agent = Agent(cfg, message_observer=observer, backend=backend)
     agent.stats.context_tokens = 2

@@ -213,13 +213,12 @@ class Agent:
         if max_price is not None:
             self.middleware_pipeline.add(PriceLimitMiddleware(max_price))
 
-        if self.config.auto_compact_threshold > 0:
-            self.middleware_pipeline.add(
-                AutoCompactMiddleware(self.config.auto_compact_threshold)
-            )
+        context_limit = self.config.get_context_limit_for_active_model()
+        if context_limit > 0:
+            self.middleware_pipeline.add(AutoCompactMiddleware(context_limit))
             if self.config.context_warnings:
                 self.middleware_pipeline.add(
-                    ContextWarningMiddleware(0.5, self.config.auto_compact_threshold)
+                    ContextWarningMiddleware(0.5, context_limit)
                 )
 
     async def _handle_middleware_result(
@@ -253,7 +252,7 @@ class Agent:
                     "old_tokens", self.stats.context_tokens
                 )
                 threshold = result.metadata.get(
-                    "threshold", self.config.auto_compact_threshold
+                    "threshold", self.config.get_context_limit_for_active_model()
                 )
 
                 yield CompactStartEvent(

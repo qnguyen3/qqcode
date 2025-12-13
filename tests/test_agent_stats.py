@@ -509,9 +509,17 @@ class TestAutoCompactIntegration:
             mock_llm_chunk(content="<summary>", finish_reason="stop"),
             mock_llm_chunk(content="<final>", finish_reason="stop"),
         ])
+        # Create a model with low context_limit to trigger compaction
+        test_model = ModelConfig(
+            name="test-model",
+            provider="mistral",
+            alias="test-compact",
+            context_limit=1,
+        )
         cfg = VibeConfig(
             session_logging=SessionLoggingConfig(enabled=False),
-            auto_compact_threshold=1,
+            active_model="test-compact",
+            models=[test_model],
         )
         agent = Agent(cfg, message_observer=observer, backend=backend)
         agent.stats.context_tokens = 2

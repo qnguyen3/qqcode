@@ -132,6 +132,9 @@ async def get_acp_agent_process(
     current_env = os.environ.copy()
     cmd = ["uv", "run", MOCK_ENTRYPOINT_PATH if mock else "vibe-acp"]
 
+    # Use a test-specific config directory to avoid loading user's config
+    test_config_home = str(TESTS_ROOT / "playground" / ".qqcode_test")
+
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdin=asyncio.subprocess.PIPE,
@@ -141,7 +144,7 @@ async def get_acp_agent_process(
         env={
             **current_env,
             **(mock_env or {}),
-            **({"MISTRAL_API_KEY": "mock"} if mock else {}),
+            **({"MISTRAL_API_KEY": "mock", "QQCODE_HOME": test_config_home} if mock else {}),
         },
     )
 

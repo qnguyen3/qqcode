@@ -68,6 +68,7 @@ def test_run_programmatic_preload_streaming_is_batched(
             prompt="Can you summarize what decorators are?",
             output_format=OutputFormat.STREAMING,
             previous_messages=previous,
+            auto_approve=True,
         )
 
         roles = [r for r, _ in spy.emitted]
