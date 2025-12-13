@@ -566,6 +566,10 @@ class VibeApp(App):
             self._loading_widget = None
             await self._finalize_current_streaming_message()
 
+            # Show plan approval UI if in plan mode and agent finished normally
+            if self.agent and self.agent_mode == AgentMode.PLAN:
+                await self._switch_to_plan_approval()
+
     async def _interrupt_agent(self) -> None:
         interrupting_agent_init = bool(
             self._agent_init_task and not self._agent_init_task.done()
