@@ -17,7 +17,13 @@ from vibe.core.tools.ui import ToolUIDataAdapter
 from vibe.core.types import ToolCallEvent, ToolResultEvent
 from vibe.core.utils import TaggedText, is_user_cancellation_event
 
-TOOL_KIND: dict[str, ToolKind] = {"read_file": "read", "grep": "search"}
+TOOL_KIND: dict[str, ToolKind] = {
+    "read_file": "read",
+    "grep": "search",
+    # Plan approval / mode switching
+    "exit_plan_mode": "switch_mode",
+    "submit_plan": "switch_mode",
+}
 
 
 def tool_call_session_update(event: ToolCallEvent) -> SessionUpdate | None:

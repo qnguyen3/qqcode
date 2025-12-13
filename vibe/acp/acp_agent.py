@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from pathlib import Path
 import sys
-from typing import Any, cast, override
+from typing import Any, Awaitable, Callable, cast, override
 
 from acp import (
     PROTOCOL_VERSION,
@@ -60,6 +60,7 @@ from vibe.core.autocompletion.path_prompt_adapter import render_path_prompt
 from vibe.core.config import MissingAPIKeyError, VibeConfig, load_api_keys_from_env
 from vibe.core.types import (
     AssistantEvent,
+    AgentMode,
     AsyncApprovalCallback,
     ModeChangedEvent,
     ToolCallEvent,
@@ -166,6 +167,10 @@ class VibeAcpAgent(AcpAgent):
             }) from e
 
         agent = VibeAgent(config=config, auto_approve=False, enable_streaming=True)
+        # ACP (Zed) needs a permission request with toolCall.kind="switch_mode" to render
+        # plan approval / mode switching UI. We implement that via the standard approval
+        # callback mechanism, so also wire it for plan submissions.
+        agent.plan_approval_callback = self._create_plan_approval_callback(agent.session_id)
         # NOTE: For now, we pin session.id to agent.session_id right after init time.
         # We should just use agent.session_id everywhere, but it can still change during
         # session lifetime (e.g. agent.compact is called).
@@ -217,12 +222,26 @@ class VibeAcpAgent(AcpAgent):
         async def approval_callback(
             tool_name: str, args: dict[str, Any], tool_call_id: str
         ) -> tuple[str, str | None]:
-            # Create the tool call update
-            tool_call = ToolCall(toolCallId=tool_call_id)
+            # Create the tool call details for the permission request.
+            # Important: Zed expects a `kind` on the tool call to render the correct
+            # approval UI (e.g. plan approval uses kind="switch_mode").
+            tool_kind: str | None = None
+            if tool_name == "exit_plan_mode" or tool_name == "submit_plan":
+                tool_kind = "switch_mode"
+
+            tool_call = ToolCall(
+                toolCallId=tool_call_id,
+                kind=tool_kind,
+                title=tool_name,
+                rawInput=args,
+                status="pending",
+            )
 
             # Request permission from the user
             request = RequestPermissionRequest(
-                sessionId=session_id, toolCall=tool_call, options=TOOL_OPTIONS
+                sessionId=session_id,
+                toolCall=tool_call,
+                options=TOOL_OPTIONS,
             )
 
             response = await self.connection.requestPermission(request)
@@ -242,6 +261,51 @@ class VibeAcpAgent(AcpAgent):
                 )
 
         return approval_callback
+
+    def _create_plan_approval_callback(
+        self, session_id: str
+    ) -> Callable[[str], Awaitable[tuple[bool, str | None]]]:
+        async def plan_approval_callback(plan: str) -> tuple[bool, str | None]:
+            # For plan approval, request permission with a switch_mode kind.
+            tool_call_id = f"plan:{session_id}"
+            tool_call = ToolCall(
+                toolCallId=tool_call_id,
+                kind="switch_mode",
+                title="exit_plan_mode",
+                rawInput={"plan": plan},
+                status="pending",
+            )
+
+            request = RequestPermissionRequest(
+                sessionId=session_id,
+                toolCall=tool_call,
+                options=TOOL_OPTIONS,
+            )
+
+            response = await self.connection.requestPermission(request)
+            if response.outcome.outcome != "selected":
+                return (
+                    False,
+                    str(
+                        get_user_cancellation_message(
+                            CancellationReason.OPERATION_CANCELLED
+                        )
+                    ),
+                )
+
+            option_id = cast(AllowedOutcome, response.outcome).optionId
+            match option_id:
+                case ToolOption.ALLOW_ALWAYS:
+                    return (True, AgentMode.AUTO_APPROVE.value)
+                case ToolOption.ALLOW_ONCE:
+                    return (True, AgentMode.INTERACTIVE.value)
+                case _:
+                    return (
+                        False,
+                        "User requested revisions to the plan.",
+                    )
+
+        return plan_approval_callback
 
     @staticmethod
     def _handle_permission_selection(option_id: str) -> tuple[str, str | None]:
