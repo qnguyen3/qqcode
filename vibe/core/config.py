@@ -279,7 +279,7 @@ DEFAULT_PROVIDERS = [
     ),
     ProviderConfig(
         name="anthropic",
-        api_base="https://api.anthropic.com/v1",
+        api_base="https://api.anthropic.com",
         api_key_env_var="ANTHROPIC_API_KEY",
         api_style="anthropic",
         backend=Backend.ANTHROPIC,
@@ -343,34 +343,34 @@ DEFAULT_MODELS = [
     ModelConfig(
         name="claude-sonnet-4-5-20250929",
         provider="anthropic",
-        alias="claude-sonnet",
+        alias="claude-sonnet-4.5",
     ),
     ModelConfig(
         name="claude-sonnet-4-5-20250929",
         provider="anthropic",
-        alias="claude-sonnet:thinking",
+        alias="claude-sonnet-4.5:thinking",
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
     ModelConfig(
         name="claude-haiku-4-5-20251001",
         provider="anthropic",
-        alias="claude-haiku",
+        alias="claude-haiku-4.5",
     ),
     ModelConfig(
         name="claude-haiku-4-5-20251001",
         provider="anthropic",
-        alias="claude-haiku:thinking",
+        alias="claude-haiku-4.5:thinking",
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
     ModelConfig(
         name="claude-opus-4-5-20251101",
         provider="anthropic",
-        alias="claude-opus",
+        alias="claude-opus-4.5",
     ),
     ModelConfig(
         name="claude-opus-4-5-20251101",
         provider="anthropic",
-        alias="claude-opus:thinking",
+        alias="claude-opus-4.5:thinking",
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
 ]

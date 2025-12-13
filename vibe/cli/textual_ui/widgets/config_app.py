@@ -149,6 +149,10 @@ class ConfigApp(Container):
         return unique
 
     def _infer_active_provider(self) -> str:
+        # Use saved active_provider if available
+        if active_provider := getattr(self.config, "active_provider", None):
+            return active_provider
+        # Otherwise infer from active model
         try:
             return self.config.get_active_model().provider
         except Exception:
