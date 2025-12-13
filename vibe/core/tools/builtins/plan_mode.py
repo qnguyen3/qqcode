@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from vibe.core.tools.base import (
     BaseTool,
@@ -12,46 +12,49 @@ from vibe.core.tools.base import (
 )
 
 # ============================================================================
-# EnterPlanMode Tool
+# SubmitPlan Tool
 # ============================================================================
 
 
-class EnterPlanModeArgs(BaseModel):
-    """Arguments for entering plan mode."""
+class SubmitPlanArgs(BaseModel):
+    """Arguments for submitting a plan."""
 
-    pass
+    plan: str = Field(description="The implementation plan in Markdown format")
 
 
-class EnterPlanModeResult(BaseModel):
-    """Result of entering plan mode."""
+class SubmitPlanResult(BaseModel):
+    """Result of submitting a plan."""
 
     success: bool
     message: str
-    mode_change: Literal["plan"] = "plan"
+    plan_submitted: Literal[True] = True
+    approved: bool | None = None
+    execution_mode: str | None = None
 
 
-class EnterPlanModeConfig(BaseToolConfig):
-    """Configuration for enter_plan_mode tool."""
+class SubmitPlanConfig(BaseToolConfig):
+    """Configuration for submit_plan tool."""
 
     permission: ToolPermission = ToolPermission.ALWAYS
 
 
-class EnterPlanMode(
-    BaseTool[EnterPlanModeArgs, EnterPlanModeResult, EnterPlanModeConfig, BaseToolState]
+class SubmitPlan(
+    BaseTool[SubmitPlanArgs, SubmitPlanResult, SubmitPlanConfig, BaseToolState]
 ):
-    """Tool to enter plan mode for analyzing and creating implementation plans."""
+    """Tool to submit an implementation plan for user approval."""
 
     description: ClassVar[str] = (
-        "Enter plan mode to analyze the codebase and create implementation plans. "
-        "In plan mode, only read-only operations (read_file, grep, todo) are allowed. "
-        "Use this when you need to plan before making changes."
+        "Submit your implementation plan for user approval. "
+        "The plan should be in Markdown format with clear steps. "
+        "The user will review and choose to approve or request revisions."
     )
 
-    async def run(self, args: EnterPlanModeArgs) -> EnterPlanModeResult:
-        return EnterPlanModeResult(
+    async def run(self, args: SubmitPlanArgs) -> SubmitPlanResult:
+        # The actual approval happens via callback in the agent
+        # This just returns a placeholder result that will be mutated
+        return SubmitPlanResult(
             success=True,
-            message="Entered plan mode. Only read-only operations are now allowed. "
-            "Use exit_plan_mode when your plan is complete.",
+            message="Plan submitted. Awaiting user approval.",
         )
 
 
@@ -83,16 +86,15 @@ class ExitPlanModeConfig(BaseToolConfig):
 class ExitPlanMode(
     BaseTool[ExitPlanModeArgs, ExitPlanModeResult, ExitPlanModeConfig, BaseToolState]
 ):
-    """Tool to exit plan mode after completing a plan."""
+    """Tool to exit plan mode after user has approved the plan."""
 
     description: ClassVar[str] = (
-        "Exit plan mode after you have completed your implementation plan. "
-        "The user will then choose how to proceed with execution "
-        "(auto-approve, interactive, or revise the plan)."
+        "Exit plan mode after your plan has been approved by the user. "
+        "Call this to acknowledge approval and begin implementation."
     )
 
     async def run(self, args: ExitPlanModeArgs) -> ExitPlanModeResult:
         return ExitPlanModeResult(
             success=True,
-            message="Plan complete. Awaiting user approval to proceed with execution.",
+            message="Exiting plan mode. Proceeding with implementation.",
         )

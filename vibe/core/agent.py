@@ -62,8 +62,10 @@ from vibe.core.utils import (
     is_user_cancellation_event,
 )
 
-# Tools allowed in Plan Mode (read-only operations + exit_plan_mode)
-PLAN_MODE_ALLOWED_TOOLS = frozenset({"read_file", "grep", "todo", "exit_plan_mode"})
+# Tools allowed in Plan Mode (read-only operations + plan submission/exit)
+PLAN_MODE_ALLOWED_TOOLS = frozenset(
+    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode"}
+)
 
 
 class ToolExecutionResponse(StrEnum):
@@ -139,6 +141,9 @@ class Agent:
             self._mode = AgentMode.INTERACTIVE
 
         self.approval_callback: ApprovalCallback | None = None
+        self.plan_approval_callback: (
+            Callable[[str], Any] | None
+        ) = None  # Callback for submit_plan approval
 
         self.session_id = str(uuid4())
 
@@ -560,6 +565,31 @@ class Agent:
                 result_model = await tool_instance.invoke(**tool_call.args_dict)
                 duration = time.perf_counter() - start_time
 
+                # Handle plan submission approval via callback
+                if (
+                    hasattr(result_model, "plan_submitted")
+                    and result_model.plan_submitted
+                    and self.plan_approval_callback
+                ):
+                    plan_content = tool_call.args_dict.get("plan", "")
+                    callback_result = self.plan_approval_callback(plan_content)
+                    if asyncio.iscoroutine(callback_result):
+                        approved, mode_or_feedback = await callback_result
+                    else:
+                        approved, mode_or_feedback = callback_result
+                    # Mutate result with approval info
+                    result_model.approved = approved
+                    if approved:
+                        result_model.execution_mode = mode_or_feedback
+                        result_model.message = (
+                            f"Plan approved. Execution mode: {mode_or_feedback}"
+                        )
+                    else:
+                        result_model.execution_mode = None
+                        result_model.message = (
+                            f"User requested revisions: {mode_or_feedback}"
+                        )
+
                 text = "\n".join(
                     f"{k}: {v}" for k, v in result_model.model_dump().items()
                 )
@@ -582,7 +612,7 @@ class Agent:
 
                 self.stats.tool_calls_succeeded += 1
 
-                # Check for mode change signals in tool result
+                # Check for mode change signals in tool result (legacy)
                 if (
                     hasattr(result_model, "mode_change")
                     and result_model.mode_change == "plan"

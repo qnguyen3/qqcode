@@ -258,7 +258,12 @@ class VibeApp(App):
     async def on_plan_approval_widget_plan_approved(
         self, message: PlanApprovalWidget.PlanApproved
     ) -> None:
-        """Handle plan approval - switch to selected mode and continue with implementation."""
+        """Handle plan approval - resolve Future so agent continues."""
+        # Resolve the Future - agent continues with this result
+        if hasattr(self, "_pending_plan_approval") and self._pending_plan_approval:
+            self._pending_plan_approval.set_result((True, message.mode.value))
+
+        # Update app mode for execution phase
         self.agent_mode = message.mode
         # First switch back to input (mounts ChatInputContainer)
         await self._switch_to_input_app()
@@ -266,21 +271,14 @@ class VibeApp(App):
         self._sync_mode_to_ui()
         self._sync_mode_to_agent()
 
-        # Send continuation message to agent to start implementation
-        if self.agent and not self._agent_running:
-            continuation_msg = (
-                "The user has approved your plan. "
-                "Please proceed with the implementation."
-            )
-            self._agent_task = asyncio.create_task(
-                self._handle_agent_turn(continuation_msg)
-            )
-
     async def on_plan_approval_widget_revision_requested(
         self, message: PlanApprovalWidget.RevisionRequested
     ) -> None:
-        """Handle revision request - stay in plan mode and return to input."""
-        # Stay in plan mode, just return to input so user can provide feedback
+        """Handle revision request - resolve Future with feedback."""
+        # Resolve with rejection + feedback - agent knows what to revise
+        if hasattr(self, "_pending_plan_approval") and self._pending_plan_approval:
+            feedback = getattr(message, "feedback", "Please revise the plan.")
+            self._pending_plan_approval.set_result((False, feedback))
         await self._switch_to_input_app()
 
     async def _switch_to_plan_approval(self) -> None:
@@ -298,7 +296,9 @@ class VibeApp(App):
         # Remove existing widgets
         await bottom_container.remove_children()
 
-        plan_approval = PlanApprovalWidget()
+        # Pass plan content to widget if available
+        plan_content = getattr(self, "_pending_plan_content", None)
+        plan_approval = PlanApprovalWidget(plan=plan_content)
         await bottom_container.mount(plan_approval)
         self._current_bottom_app = BottomApp.PlanApproval
         plan_approval.focus()
@@ -478,6 +478,9 @@ class VibeApp(App):
             if self.agent_mode != AgentMode.AUTO_APPROVE:
                 agent.approval_callback = self._approval_callback
 
+            # Always set plan approval callback for plan mode
+            agent.plan_approval_callback = self._plan_approval_callback
+
             if self._loaded_messages:
                 non_system_messages = [
                     msg
@@ -527,6 +530,18 @@ class VibeApp(App):
         self._pending_approval = None
         return result
 
+    async def _plan_approval_callback(self, plan: str) -> tuple[bool, str | None]:
+        """Callback invoked when agent calls submit_plan. Shows approval UI and waits."""
+        self._pending_plan_approval: asyncio.Future[
+            tuple[bool, str | None]
+        ] | None = asyncio.Future()
+        self._pending_plan_content: str | None = plan
+        await self._switch_to_plan_approval()
+        result = await self._pending_plan_approval
+        self._pending_plan_approval = None
+        self._pending_plan_content = None
+        return result
+
     async def _handle_agent_turn(self, prompt: str) -> None:
         if not self.agent:
             return
@@ -551,7 +566,7 @@ class VibeApp(App):
                         current_tokens=self.agent.stats.context_tokens,
                     )
 
-                # Handle mode change events directly (from enter_plan_mode tool)
+                # Handle mode change events (legacy, for backward compatibility)
                 if isinstance(event, ModeChangedEvent):
                     self.agent_mode = event.new_mode
                     self._sync_mode_to_ui()
@@ -587,9 +602,8 @@ class VibeApp(App):
             self._loading_widget = None
             await self._finalize_current_streaming_message()
 
-            # Show plan approval UI if in plan mode and agent finished normally
-            if self.agent and self.agent_mode == AgentMode.PLAN:
-                await self._switch_to_plan_approval()
+            # Note: Plan approval is now handled via callback during submit_plan tool execution,
+            # not after agent turn ends.
 
     async def _interrupt_agent(self) -> None:
         interrupting_agent_init = bool(

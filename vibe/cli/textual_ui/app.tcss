@@ -624,7 +624,7 @@ WelcomeBanner {
 #plan-approval-app {
     width: 100%;
     height: auto;
-    max-height: 12;
+    max-height: 24;
     background: $background;
     border: round $primary;
     padding: 0 1;
@@ -632,6 +632,20 @@ WelcomeBanner {
 }
 
 #plan-approval-content {
+    width: 100%;
+    height: auto;
+}
+
+#plan-content-container {
+    width: 100%;
+    height: auto;
+    max-height: 10;
+    background: $surface;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+#plan-content {
     width: 100%;
     height: auto;
 }
@@ -671,6 +685,12 @@ WelcomeBanner {
 .plan-approval-help {
     height: auto;
     color: $text-muted;
+}
+
+#revision-input {
+    width: 100%;
+    height: auto;
+    margin: 0 0 1 0;
 }
 
 .code-block {
