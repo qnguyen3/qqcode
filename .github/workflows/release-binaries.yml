@@ -13,6 +13,8 @@ on:
 jobs:
   build-and-release:
     name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    permissions:
+      contents: write  # Required to upload files to releases
     strategy:
       matrix:
         include:
