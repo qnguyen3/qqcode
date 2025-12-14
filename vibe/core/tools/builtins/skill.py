@@ -37,7 +37,7 @@ class SkillResult(BaseModel):
 class SkillConfig(BaseToolConfig):
     """Configuration for the skill tool."""
 
-    permission: ToolPermission = ToolPermission.ALWAYS
+    permission: ToolPermission = ToolPermission.ASK
 
 
 class SkillState(BaseToolState):
