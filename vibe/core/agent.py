@@ -64,7 +64,7 @@ from vibe.core.utils import (
 
 # Tools allowed in Plan Mode (read-only operations + plan submission/exit)
 PLAN_MODE_ALLOWED_TOOLS = frozenset(
-    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode"}
+    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode", "bash"}
 )
 
 
@@ -533,7 +533,7 @@ class Agent:
             )
 
             try:
-                tool_instance = self.tool_manager.get(tool_call.tool_name)
+                tool_instance = self._get_tool_instance(tool_call.tool_name)
             except Exception as exc:
                 error_msg = f"Error getting tool '{tool_call.tool_name}': {exc}"
                 yield ToolResultEvent(
@@ -824,6 +824,28 @@ class Agent:
                 f"API error from {provider.name} (model: {active_model.name}): {e}"
             ) from e
 
+    def _get_tool_instance(self, tool_name: str) -> BaseTool:
+        """Get a tool instance, using plan mode configuration for bash if in plan mode."""
+        # In plan mode, use special configuration for bash tool
+        if self._mode == AgentMode.PLAN and tool_name == "bash":
+            from vibe.core.tools.builtins.bash import Bash, BashPlanModeConfig
+            
+            # Get the tool class
+            tool_class = self.tool_manager._available.get(tool_name)
+            if tool_class is None:
+                raise Exception(f"Tool '{tool_name}' not found")
+            
+            # Create plan mode config
+            plan_mode_config = BashPlanModeConfig()
+            if self.config.workdir is not None:
+                plan_mode_config.workdir = self.config.workdir
+            
+            # Return a new instance with plan mode config
+            return tool_class.from_config(plan_mode_config)
+        
+        # For all other cases, use the normal tool manager
+        return self.tool_manager.get(tool_name)
+
     async def _should_execute_tool(  # noqa: PLR0911
         self, tool: BaseTool, args: dict[str, Any], tool_call_id: str
     ) -> ToolDecision:
@@ -831,15 +853,32 @@ class Agent:
 
         # Plan mode: only allow read-only tools
         if self._mode == AgentMode.PLAN:
-            if tool_name in PLAN_MODE_ALLOWED_TOOLS:
-                return ToolDecision(verdict=ToolExecutionResponse.EXECUTE)
-            return ToolDecision(
-                verdict=ToolExecutionResponse.SKIP,
-                feedback=(
-                    f"Plan mode: '{tool_name}' is not allowed. "
-                    f"Only read-only tools ({', '.join(sorted(PLAN_MODE_ALLOWED_TOOLS))}) are permitted."
-                ),
-            )
+            if tool_name not in PLAN_MODE_ALLOWED_TOOLS:
+                return ToolDecision(
+                    verdict=ToolExecutionResponse.SKIP,
+                    feedback=(
+                        f"Plan mode: '{tool_name}' is not allowed. "
+                        f"Only read-only tools ({', '.join(sorted(PLAN_MODE_ALLOWED_TOOLS))}) are permitted."
+                    ),
+                )
+
+            # For bash tool in plan mode, check the restrictive allowlist/denylist
+            if tool_name == "bash":
+                args_model, _ = tool._get_tool_args_results()
+                validated_args = args_model.model_validate(args)
+
+                allowlist_denylist_result = tool.check_allowlist_denylist(validated_args)
+                if allowlist_denylist_result == ToolPermission.NEVER:
+                    return ToolDecision(
+                        verdict=ToolExecutionResponse.SKIP,
+                        feedback=(
+                            "Plan mode: Command blocked. Only read-only bash commands are allowed. "
+                            "Blocked commands include: file modification (touch, mkdir, rm, mv, cp), "
+                            "git write operations (commit, push, add), network operations (curl, wget), etc."
+                        ),
+                    )
+
+            return ToolDecision(verdict=ToolExecutionResponse.EXECUTE)
 
         # Auto-approve mode: execute all tools
         if self._mode == AgentMode.AUTO_APPROVE:

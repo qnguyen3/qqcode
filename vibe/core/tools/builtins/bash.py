@@ -150,6 +150,95 @@ class BashToolConfig(BaseToolConfig):
     )
 
 
+def _get_plan_mode_allowlist() -> list[str]:
+    """Get a restrictive allowlist for bash commands in plan mode (read-only only)."""
+    common = ["echo", "find", "git diff", "git log", "git status", "tree", "whoami"]
+    
+    if is_windows():
+        return common + ["dir", "findstr", "more", "type", "ver", "where"]
+    else:
+        return common + [
+            "cat",
+            "file",
+            "head",
+            "ls",
+            "pwd",
+            "stat",
+            "tail",
+            "uname",
+            "wc",
+            "which",
+            "grep",
+            "sort",
+            "uniq",
+            "cut",
+            "awk",
+        ]
+
+
+def _get_plan_mode_denylist() -> list[str]:
+    """Get a comprehensive denylist for bash commands in plan mode."""
+    common = ["gdb", "pdb", "passwd"]
+    
+    if is_windows():
+        return common + [
+            "cmd /k", "powershell -NoExit", "pwsh -NoExit", "notepad",
+            "del", "rd", "md", "move", "copy", "attrib", "icacls"
+        ]
+    else:
+        return common + [
+            # Editors
+            "nano", "vim", "vi", "emacs", "code",
+            # File modification
+            "touch", "mkdir", "rm", "mv", "cp", "chmod", "chown", "chgrp",
+            # System modification
+            "sudo", "su", "doas", "pkexec",
+            # Package managers
+            "apt", "apt-get", "yum", "dnf", "pacman", "pip", "npm", "yarn", "cargo",
+            # Shell operations
+            "bash -i", "sh -i", "zsh -i", "fish -i", "dash -i",
+            # Process management
+            "kill", "killall", "pkill", "nohup", "screen", "tmux",
+            # Network operations
+            "curl", "wget", "nc", "netcat", "ssh", "scp", "rsync",
+            # Git write operations
+            "git commit", "git push", "git add", "git reset", "git checkout", "git branch",
+            # System info that might be sensitive
+            "env", "printenv", "export", "unset",
+        ]
+
+
+def _get_plan_mode_denylist_standalone() -> list[str]:
+    """Get a denylist for standalone commands in plan mode."""
+    common = ["python", "python3", "ipython"]
+    
+    if is_windows():
+        return common + ["cmd", "powershell", "pwsh", "notepad"]
+    else:
+        return common + [
+            "bash", "sh", "nohup", "vi", "vim", "emacs", "nano", "su",
+            "sudo", "top", "htop", "less", "more", "man"
+        ]
+
+
+class BashPlanModeConfig(BashToolConfig):
+    """Configuration for bash tool in plan mode with restrictive read-only settings."""
+    
+    permission: ToolPermission = ToolPermission.ALWAYS
+    allowlist: list[str] = Field(
+        default_factory=_get_plan_mode_allowlist,
+        description="Command prefixes that are automatically allowed in plan mode",
+    )
+    denylist: list[str] = Field(
+        default_factory=_get_plan_mode_denylist,
+        description="Command prefixes that are automatically denied in plan mode",
+    )
+    denylist_standalone: list[str] = Field(
+        default_factory=_get_plan_mode_denylist_standalone,
+        description="Commands that are denied only when run without arguments in plan mode",
+    )
+
+
 class BashArgs(BaseModel):
     command: str
     timeout: int | None = Field(
