@@ -21,9 +21,9 @@ Use the `bash` tool to run one-off shell commands.
 - `locate` → Use `grep` tool
 
 **File Modification - DO NOT USE:**
-- `sed -i 's/old/new/g' file` → Use `search_replace` tool
-- `awk` for file editing → Use `search_replace` tool
-- Any in-place file editing → Use `search_replace` tool
+- `sed -i 's/old/new/g' file` → Use `edit` tool
+- `awk` for file editing → Use `edit` tool
+- Any in-place file editing → Use `edit` tool
 
 **APPROPRIATE bash uses:**
 - System information: `pwd`, `whoami`, `date`, `uname -a`

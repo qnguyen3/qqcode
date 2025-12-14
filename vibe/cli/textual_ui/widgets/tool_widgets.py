@@ -131,7 +131,7 @@ class WriteFileResultWidget(ToolResultWidget):
                     yield Markdown(f"```{file_extension}\n{content}\n```")
 
 
-class SearchReplaceApprovalWidget(ToolApprovalWidget):
+class EditApprovalWidget(ToolApprovalWidget):
     def compose(self) -> ComposeResult:
         file_path = self.data.get("file_path", "")
         diff_lines = self.data.get("diff_lines", [])
@@ -153,7 +153,7 @@ class SearchReplaceApprovalWidget(ToolApprovalWidget):
                     yield Static(line, markup=False, classes="diff-context")
 
 
-class SearchReplaceResultWidget(ToolResultWidget):
+class EditResultWidget(ToolResultWidget):
     def compose(self) -> ComposeResult:
         message = self.data.get("message", "")
 

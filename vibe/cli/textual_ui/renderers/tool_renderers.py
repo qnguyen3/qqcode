@@ -9,12 +9,12 @@ if TYPE_CHECKING:
 from vibe.cli.textual_ui.widgets.tool_widgets import (
     BashApprovalWidget,
     BashResultWidget,
+    EditApprovalWidget,
+    EditResultWidget,
     GrepApprovalWidget,
     GrepResultWidget,
     ReadFileApprovalWidget,
     ReadFileResultWidget,
-    SearchReplaceApprovalWidget,
-    SearchReplaceResultWidget,
     TodoApprovalWidget,
     TodoResultWidget,
     ToolApprovalWidget,
@@ -100,49 +100,38 @@ class WriteFileRenderer(ToolRenderer):
         return WriteFileResultWidget, data
 
 
-class SearchReplaceRenderer(ToolRenderer):
+class EditRenderer(ToolRenderer):
     def get_approval_widget(
         self, tool_args: dict
-    ) -> tuple[type[SearchReplaceApprovalWidget], dict[str, Any]]:
+    ) -> tuple[type[EditApprovalWidget], dict[str, Any]]:
         file_path = tool_args.get("file_path", "")
-        content = str(tool_args.get("content", ""))
+        old_string = tool_args.get("old_string", "")
+        new_string = tool_args.get("new_string", "")
 
-        diff_lines = self._parse_search_replace_blocks(content)
+        diff_lines = self._create_diff(old_string, new_string)
 
         data = {"file_path": file_path, "diff_lines": diff_lines}
-        return SearchReplaceApprovalWidget, data
+        return EditApprovalWidget, data
 
     def get_result_widget(
         self, display: ToolResultDisplay, collapsed: bool
-    ) -> tuple[type[SearchReplaceResultWidget], dict[str, Any]]:
-        diff_lines = self._parse_search_replace_blocks(
-            display.details.get("content", "")
-        )
+    ) -> tuple[type[EditResultWidget], dict[str, Any]]:
+        old_string = display.details.get("old_string", "")
+        new_string = display.details.get("new_string", "")
+        diff_lines = self._create_diff(old_string, new_string) if not collapsed else []
         data = {
             "success": display.success,
             "message": display.message,
-            "diff_lines": diff_lines if not collapsed else [],
+            "diff_lines": diff_lines,
         }
-        return SearchReplaceResultWidget, data
+        return EditResultWidget, data
 
-    def _parse_search_replace_blocks(self, content: str) -> list[str]:
-        if "<<<<<<< SEARCH" not in content:
-            return [content]
+    def _create_diff(self, old_string: str, new_string: str) -> list[str]:
+        old_lines = old_string.split("\n")
+        new_lines = new_string.split("\n")
 
-        try:
-            sections = content.split("<<<<<<< SEARCH")
-            rest = sections[1].split("=======")
-            search_section = rest[0].strip()
-            replace_part = rest[1].split(">>>>>>> REPLACE")
-            replace_section = replace_part[0].strip()
-
-            search_lines = search_section.split("\n")
-            replace_lines = replace_section.split("\n")
-
-            diff = difflib.unified_diff(search_lines, replace_lines, lineterm="", n=2)
-            return list(diff)[2:]  # Skip file headers
-        except (IndexError, AttributeError):
-            return [content[:500]]
+        diff = difflib.unified_diff(old_lines, new_lines, lineterm="", n=2)
+        return list(diff)[2:]  # Skip file headers
 
 
 class TodoRenderer(ToolRenderer):
@@ -203,7 +192,7 @@ class GrepRenderer(ToolRenderer):
 
 _RENDERER_REGISTRY: dict[str, type[ToolRenderer]] = {
     "write_file": WriteFileRenderer,
-    "search_replace": SearchReplaceRenderer,
+    "edit": EditRenderer,
     "todo": TodoRenderer,
     "read_file": ReadFileRenderer,
     "bash": BashRenderer,

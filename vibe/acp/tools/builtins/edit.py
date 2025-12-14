@@ -14,28 +14,26 @@ from acp.schema import (
 from vibe import VIBE_ROOT
 from vibe.acp.tools.base import AcpToolState, BaseAcpTool
 from vibe.core.tools.base import ToolError
-from vibe.core.tools.builtins.search_replace import (
-    SearchReplace as CoreSearchReplaceTool,
-    SearchReplaceArgs,
-    SearchReplaceResult,
-    SearchReplaceState,
+from vibe.core.tools.builtins.edit import (
+    Edit as CoreEditTool,
+    EditArgs,
+    EditResult,
+    EditState,
 )
 from vibe.core.types import ToolCallEvent, ToolResultEvent
 
 
-class AcpSearchReplaceState(SearchReplaceState, AcpToolState):
+class AcpEditState(EditState, AcpToolState):
     file_backup_content: str | None = None
 
 
-class SearchReplace(CoreSearchReplaceTool, BaseAcpTool[AcpSearchReplaceState]):
-    state: AcpSearchReplaceState
-    prompt_path = (
-        VIBE_ROOT / "core" / "tools" / "builtins" / "prompts" / "search_replace.md"
-    )
+class Edit(CoreEditTool, BaseAcpTool[AcpEditState]):
+    state: AcpEditState
+    prompt_path = VIBE_ROOT / "core" / "tools" / "builtins" / "prompts" / "edit.md"
 
     @classmethod
-    def _get_tool_state_class(cls) -> type[AcpSearchReplaceState]:
-        return AcpSearchReplaceState
+    def _get_tool_state_class(cls) -> type[AcpEditState]:
+        return AcpEditState
 
     async def _read_file(self, file_path: Path) -> str:
         connection, session_id, _ = self._load_state()
@@ -52,15 +50,6 @@ class SearchReplace(CoreSearchReplaceTool, BaseAcpTool[AcpSearchReplaceState]):
         self.state.file_backup_content = response.content
         return response.content
 
-    async def _backup_file(self, file_path: Path) -> None:
-        if self.state.file_backup_content is None:
-            return
-
-        await self._write_file(
-            file_path.with_suffix(file_path.suffix + ".bak"),
-            self.state.file_backup_content,
-        )
-
     async def _write_file(self, file_path: Path, content: str) -> None:
         connection, session_id, _ = self._load_state()
 
@@ -76,10 +65,8 @@ class SearchReplace(CoreSearchReplaceTool, BaseAcpTool[AcpSearchReplaceState]):
     @classmethod
     def tool_call_session_update(cls, event: ToolCallEvent) -> SessionUpdate | None:
         args = event.args
-        if not isinstance(args, SearchReplaceArgs):
+        if not isinstance(args, EditArgs):
             return None
-
-        blocks = cls._parse_search_replace_blocks(args.content)
 
         return ToolCallStart(
             sessionUpdate="tool_call",
@@ -90,10 +77,9 @@ class SearchReplace(CoreSearchReplaceTool, BaseAcpTool[AcpSearchReplaceState]):
                 FileEditToolCallContent(
                     type="diff",
                     path=args.file_path,
-                    oldText=block.search,
-                    newText=block.replace,
+                    oldText=args.old_string,
+                    newText=args.new_string,
                 )
-                for block in blocks
             ],
             locations=[ToolCallLocation(path=args.file_path)],
             rawInput=args.model_dump_json(),
@@ -109,10 +95,8 @@ class SearchReplace(CoreSearchReplaceTool, BaseAcpTool[AcpSearchReplaceState]):
             )
 
         result = event.result
-        if not isinstance(result, SearchReplaceResult):
+        if not isinstance(result, EditResult):
             return None
-
-        blocks = cls._parse_search_replace_blocks(result.content)
 
         return ToolCallProgress(
             sessionUpdate="tool_call_update",
@@ -122,10 +106,9 @@ class SearchReplace(CoreSearchReplaceTool, BaseAcpTool[AcpSearchReplaceState]):
                 FileEditToolCallContent(
                     type="diff",
                     path=result.file,
-                    oldText=block.search,
-                    newText=block.replace,
+                    oldText=result.old_string,
+                    newText=result.new_string,
                 )
-                for block in blocks
             ],
             locations=[ToolCallLocation(path=result.file)],
             rawOutput=result.model_dump_json(),

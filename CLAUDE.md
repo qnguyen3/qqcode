@@ -69,7 +69,7 @@ uv run pre-commit run --all-files
 **Tool System (`vibe/core/tools/`)**:
 - `BaseTool` - Generic base class using Pydantic for args/result validation
 - `ToolManager` - Discovers and instantiates tools from built-in and custom directories
-- Built-in tools: `bash`, `grep`, `read_file`, `write_file`, `search_replace`, `todo`
+- Built-in tools: `bash`, `grep`, `read_file`, `write_file`, `edit`, `todo`
 - MCP tools are dynamically created via proxy classes
 
 **Configuration (`vibe/core/config.py`)**: Pydantic-based settings loaded from `~/.qqcode/config.toml` or `./.qqcode/config.toml`. Supports custom system prompts, agent configurations, MCP servers, and tool permissions.

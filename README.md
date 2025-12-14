@@ -53,7 +53,7 @@ pip install qqcode
 
 - **Interactive Chat**: A conversational AI agent that understands your requests and breaks down complex tasks.
 - **Powerful Toolset**: A suite of tools for file manipulation, code searching, version control, and command execution, right from the chat prompt.
-  - Read, write, and patch files (`read_file`, `write_file`, `search_replace`).
+  - Read, write, and edit files (`read_file`, `write_file`, `edit`).
   - Execute shell commands in a stateful terminal (`bash`).
   - Recursively search code with `grep` (with `ripgrep` support).
   - Manage a `todo` list to track the agent's work.
@@ -190,7 +190,7 @@ active_model = "devstral-2"
 system_prompt_id = "redteam"
 
 # Disable some tools for this agent
-disabled_tools = ["search_replace", "write_file"]
+disabled_tools = ["edit", "write_file"]
 
 # Override tool permissions for this agent
 [tools.bash]

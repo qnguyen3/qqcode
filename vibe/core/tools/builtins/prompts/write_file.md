@@ -15,7 +15,7 @@ Use `write_file` to write content to a file.
 **BEST PRACTICES:**
 
 - **ALWAYS** use the `read_file` tool first before overwriting an existing file to understand its current contents
-- **ALWAYS** prefer using `search_replace` to edit existing files rather than overwriting them completely
+- **ALWAYS** prefer using `edit` to edit existing files rather than overwriting them completely
 - **NEVER** write new files unless explicitly required - prefer modifying existing files
 - **NEVER** proactively create documentation files (*.md) or README files unless explicitly requested
 - **AVOID** using emojis in file content unless the user explicitly requests them
@@ -39,4 +39,4 @@ write_file(
 )
 ```
 
-**Remember:** For editing existing files, prefer `search_replace` over `write_file` to preserve unchanged portions and avoid accidental data loss.
+**Remember:** For editing existing files, prefer `edit` over `write_file` to preserve unchanged portions and avoid accidental data loss.

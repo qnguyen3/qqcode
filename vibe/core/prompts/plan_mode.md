@@ -10,7 +10,7 @@ You are in **PLAN MODE**. You can explore and analyze the codebase but cannot ma
 ## Restrictions
 - You can ONLY use read-only tools: `read_file`, `grep`, `todo`, `bash`, `submit_plan`, `exit_plan_mode`
 - The `bash` tool is restricted to read-only commands only (e.g., `ls`, `cat`, `git log`, `find`, `tree`)
-- Any write operations (`write_file`, `search_replace`) will be blocked
+- Any write operations (`write_file`, `edit`) will be blocked
 - Bash commands that modify files or system state are automatically denied
 
 ## Bash Tool Usage in Plan Mode
