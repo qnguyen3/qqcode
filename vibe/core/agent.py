@@ -27,6 +27,7 @@ from vibe.core.middleware import (
     TurnLimitMiddleware,
 )
 from vibe.core.prompts import UtilityPrompt
+from vibe.core.skills.manager import SkillManager
 from vibe.core.system_prompt import get_universal_system_prompt
 from vibe.core.tools.base import (
     BaseTool,
@@ -64,7 +65,7 @@ from vibe.core.utils import (
 
 # Tools allowed in Plan Mode (read-only operations + plan submission/exit)
 PLAN_MODE_ALLOWED_TOOLS = frozenset(
-    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode", "bash"}
+    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode", "bash", "skill"}
 )
 
 
@@ -104,7 +105,11 @@ class Agent:
     ) -> None:
         self.config = config
 
-        self.tool_manager = ToolManager(config)
+        # Initialize skill manager for domain-specific expertise
+        self.skill_manager = SkillManager(config)
+
+        # Initialize tool manager with skill manager reference
+        self.tool_manager = ToolManager(config, skill_manager=self.skill_manager)
         self.format_handler = APIToolFormatHandler()
 
         self.backend_factory = lambda: backend or self._select_backend()
@@ -116,7 +121,9 @@ class Agent:
         self.enable_streaming = enable_streaming
         self._setup_middleware(max_turns, max_price)
 
-        system_prompt = get_universal_system_prompt(self.tool_manager, config)
+        system_prompt = get_universal_system_prompt(
+            self.tool_manager, config, skill_manager=self.skill_manager
+        )
 
         self.messages = [LLMMessage(role=Role.system, content=system_prompt)]
 
@@ -1108,9 +1115,13 @@ class Agent:
             self.config = config
             self.backend = self.backend_factory()
 
-        self.tool_manager = ToolManager(self.config)
+        # Recreate skill manager and tool manager with updated config
+        self.skill_manager = SkillManager(self.config)
+        self.tool_manager = ToolManager(self.config, skill_manager=self.skill_manager)
 
-        new_system_prompt = get_universal_system_prompt(self.tool_manager, self.config)
+        new_system_prompt = get_universal_system_prompt(
+            self.tool_manager, self.config, skill_manager=self.skill_manager
+        )
         self.messages = [LLMMessage(role=Role.system, content=new_system_prompt)]
         did_system_prompt_change = old_system_prompt != new_system_prompt
 

@@ -1,5 +1,5 @@
 {
-  description = "Mistral Vibe!";
+  description = "QQCode";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

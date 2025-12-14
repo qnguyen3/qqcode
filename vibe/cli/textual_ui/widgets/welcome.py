@@ -11,6 +11,7 @@ from textual.widgets import Static
 
 from vibe.core import __version__
 from vibe.core.config import VibeConfig
+from vibe.core.skills.manager import SkillManager
 
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
@@ -101,7 +102,9 @@ class WelcomeBanner(Static):
         )
         mcp_count = len(self.config.mcp_servers)
         model_count = len(self.config.models)
-        self._static_line3_suffix = f"{self.LOGO_TEXT_GAP}[dim]{model_count} models · {mcp_count} MCP servers[/]"
+        skill_manager = SkillManager(self.config)
+        skill_count = len(skill_manager.get_available_skills())
+        self._static_line3_suffix = f"{self.LOGO_TEXT_GAP}[dim]{model_count} models · {mcp_count} MCP servers · {skill_count} skills[/]"
         self._static_line5_suffix = (
             f"{self.LOGO_TEXT_GAP}[dim]{self.config.effective_workdir}[/]"
         )

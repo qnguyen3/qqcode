@@ -16,6 +16,7 @@ from vibe.core.utils import is_dangerous_directory, is_windows
 
 if TYPE_CHECKING:
     from vibe.core.config import ProjectContextConfig, VibeConfig
+    from vibe.core.skills.manager import SkillManager
     from vibe.core.tools.manager import ToolManager
 
 
@@ -374,7 +375,11 @@ def _add_commit_signature() -> str:
     )
 
 
-def get_universal_system_prompt(tool_manager: ToolManager, config: VibeConfig) -> str:
+def get_universal_system_prompt(
+    tool_manager: ToolManager,
+    config: VibeConfig,
+    skill_manager: SkillManager | None = None,
+) -> str:
     sections = [config.system_prompt]
 
     if config.include_commit_signature:
@@ -392,6 +397,12 @@ def get_universal_system_prompt(tool_manager: ToolManager, config: VibeConfig) -
                 tool_prompts.append(prompt)
         if tool_prompts:
             sections.append("\n---\n".join(tool_prompts))
+
+        # Add available skills section if skills are discovered
+        if skill_manager and skill_manager.has_skills():
+            skills_section = skill_manager.get_skills_prompt_section()
+            if skills_section:
+                sections.append(skills_section)
 
         user_instructions = config.instructions.strip() or _load_user_instructions()
         if user_instructions.strip():

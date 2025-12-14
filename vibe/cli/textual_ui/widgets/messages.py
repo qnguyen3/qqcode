@@ -124,7 +124,7 @@ class UserCommandMessage(Static):
 class InterruptMessage(Static):
     def __init__(self) -> None:
         super().__init__(
-            "Interrupted · What should Vibe do instead?", classes="interrupt-message"
+            "Interrupted · What should QQcode do instead?", classes="interrupt-message"
         )
 
 
