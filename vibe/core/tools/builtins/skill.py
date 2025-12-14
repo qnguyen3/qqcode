@@ -117,29 +117,38 @@ class Skill(
         if event.skip_reason:
             return ToolResultDisplay(success=False, message=event.skip_reason)
 
-        if not isinstance(event.result, SkillResult):
-            return ToolResultDisplay(success=False, message="Invalid result type")
-
         result = event.result
 
-        if not result.success:
+        # Use duck typing to check for SkillResult-like objects
+        # This handles cases where the result might be deserialized or recreated
+        if result is None or not hasattr(result, "skill_name"):
+            return ToolResultDisplay(success=False, message="Invalid result type")
+
+        # Access attributes safely
+        skill_name = getattr(result, "skill_name", "unknown")
+        content = getattr(result, "content", "")
+        skill_path = getattr(result, "skill_path", "")
+        success = getattr(result, "success", True)
+        error = getattr(result, "error", None)
+
+        if not success:
             return ToolResultDisplay(
                 success=False,
-                message=result.error or "Unknown error",
+                message=error or "Unknown error",
             )
 
         # Count content lines for summary
-        content_lines = len(result.content.splitlines())
-        message = f"Loaded skill '{result.skill_name}' ({content_lines} lines)"
+        content_lines = len(content.splitlines()) if content else 0
+        message = f"Loaded skill '{skill_name}' ({content_lines} lines)"
 
         return ToolResultDisplay(
             success=True,
             message=message,
             details={
-                "skill_name": result.skill_name,
-                "skill_path": result.skill_path,
-                "content_length": len(result.content),
-                "content": result.content,
+                "skill_name": skill_name,
+                "skill_path": skill_path,
+                "content_length": len(content) if content else 0,
+                "content": content,
             },
         )
 
