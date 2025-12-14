@@ -53,7 +53,7 @@ class Edit(
 
         args = event.args
         return ToolCallDisplay(
-            summary=f"Editing {args.file_path}",
+            summary=f"Updating {args.file_path}",
             content=f"- {args.old_string}\n+ {args.new_string}",
             details={
                 "path": args.file_path,
@@ -79,7 +79,7 @@ class Edit(
 
     @classmethod
     def get_status_text(cls) -> str:
-        return "Editing file"
+        return "Updating file"
 
     @final
     async def run(self, args: EditArgs) -> EditResult:
