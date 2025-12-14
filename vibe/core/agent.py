@@ -1115,9 +1115,13 @@ class Agent:
             self.config = config
             self.backend = self.backend_factory()
 
-        self.tool_manager = ToolManager(self.config)
+        # Recreate skill manager and tool manager with updated config
+        self.skill_manager = SkillManager(self.config)
+        self.tool_manager = ToolManager(self.config, skill_manager=self.skill_manager)
 
-        new_system_prompt = get_universal_system_prompt(self.tool_manager, self.config)
+        new_system_prompt = get_universal_system_prompt(
+            self.tool_manager, self.config, skill_manager=self.skill_manager
+        )
         self.messages = [LLMMessage(role=Role.system, content=new_system_prompt)]
         did_system_prompt_change = old_system_prompt != new_system_prompt
 
