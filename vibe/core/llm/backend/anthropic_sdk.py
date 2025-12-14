@@ -284,7 +284,6 @@ class AnthropicBackend:
             }
 
             if system_parts:
-                # Send as array of text blocks - required for Claude Code OAuth
                 kwargs["system"] = self._mapper.prepare_system_blocks(system_parts)
             if temperature > 0:
                 kwargs["temperature"] = temperature
@@ -304,7 +303,7 @@ class AnthropicBackend:
             )
             if thinking_enabled:
                 kwargs["thinking"] = model.extra_body["thinking"]  # type: ignore
-                # Combine OAuth beta header with thinking beta header
+
                 if self._is_oauth():
                     extra_call_headers["anthropic-beta"] = (
                         "oauth-2025-04-20,interleaved-thinking-2025-05-14"
@@ -385,7 +384,6 @@ class AnthropicBackend:
             }
 
             if system_parts:
-                # Send as array of text blocks - required for Claude Code OAuth
                 kwargs["system"] = self._mapper.prepare_system_blocks(system_parts)
             if temperature > 0:
                 kwargs["temperature"] = temperature
@@ -405,7 +403,6 @@ class AnthropicBackend:
             )
             if thinking_enabled:
                 kwargs["thinking"] = model.extra_body["thinking"]  # type: ignore
-                # Combine OAuth beta header with thinking beta header
                 if self._is_oauth():
                     extra_call_headers["anthropic-beta"] = (
                         "oauth-2025-04-20,interleaved-thinking-2025-05-14"
