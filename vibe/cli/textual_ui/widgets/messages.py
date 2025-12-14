@@ -38,7 +38,8 @@ class AssistantMessage(Static):
         super().__init__()
         self.add_class("assistant-message")
         self._content = content
-        self._reasoning_content = reasoning_content or ""
+        # Strip leading newlines from reasoning content (Z.ai sends leading \n)
+        self._reasoning_content = (reasoning_content or "").lstrip("\n")
         self._markdown: Markdown | None = None
         self._stream: MarkdownStream | None = None
         self._reasoning_widget: Static | None = None
@@ -83,6 +84,10 @@ class AssistantMessage(Static):
         if not reasoning:
             return
 
+        # Strip leading newlines from first reasoning chunk (Z.ai sends leading \n)
+        if not self._reasoning_content:
+            reasoning = reasoning.lstrip("\n")
+
         self._reasoning_content += reasoning
         widget = self._get_reasoning_widget()
         widget.update(self._reasoning_content)
@@ -91,7 +96,8 @@ class AssistantMessage(Static):
     async def write_initial_content(self) -> None:
         if self._reasoning_content:
             widget = self._get_reasoning_widget()
-            widget.update(self._reasoning_content)
+            # Strip leading newlines (Z.ai sends leading \n)
+            widget.update(self._reasoning_content.lstrip("\n"))
             widget.remove_class("hidden")
         if self._content:
             stream = self._ensure_stream()
