@@ -91,6 +91,36 @@ provider = "llamacpp"
 alias = "local"
 ```
 
+#### D) Z.ai (with thinking/reasoning tokens)
+
+Z.ai follows the OpenAI Chat Completion API but includes thinking/reasoning tokens in the response.
+The models have thinking enabled by default.
+
+```toml
+active_model = "zai/glm-4.6"
+
+[[providers]]
+name = "zai"
+api_base = "https://api.z.ai/api/coding/paas/v4"
+api_key_env_var = "ZAI_API_KEY"
+backend = "GENERIC"
+
+[[models]]
+name = "glm-4.6"
+provider = "zai"
+alias = "zai/glm-4.6"
+
+[[models]]
+name = "glm-4.5"
+provider = "zai"
+alias = "zai/glm-4.5"
+
+[[models]]
+name = "glm-4.5-air"
+provider = "zai"
+alias = "zai/glm-4.5-air"
+```
+
 ## 2) Set the API key
 
 QQcode checks that the configured provider's `api_key_env_var` is set.

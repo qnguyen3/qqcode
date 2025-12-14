@@ -29,6 +29,12 @@ from tests.backend.data.mistral import (
     STREAMED_TOOL_CONVERSATION_PARAMS as MISTRAL_STREAMED_TOOL_CONVERSATION_PARAMS,
     TOOL_CONVERSATION_PARAMS as MISTRAL_TOOL_CONVERSATION_PARAMS,
 )
+from tests.backend.data.zai import (
+    SIMPLE_CONVERSATION_PARAMS as ZAI_SIMPLE_CONVERSATION_PARAMS,
+    STREAMED_SIMPLE_CONVERSATION_PARAMS as ZAI_STREAMED_SIMPLE_CONVERSATION_PARAMS,
+    STREAMED_TOOL_CONVERSATION_PARAMS as ZAI_STREAMED_TOOL_CONVERSATION_PARAMS,
+    TOOL_CONVERSATION_PARAMS as ZAI_TOOL_CONVERSATION_PARAMS,
+)
 from vibe.core.config import Backend, ModelConfig, ProviderConfig
 from vibe.core.llm.backend.factory import BACKEND_FACTORY
 from vibe.core.llm.backend.generic import GenericBackend
@@ -48,6 +54,8 @@ class TestBackend:
             *FIREWORKS_TOOL_CONVERSATION_PARAMS,
             *MISTRAL_SIMPLE_CONVERSATION_PARAMS,
             *MISTRAL_TOOL_CONVERSATION_PARAMS,
+            *ZAI_SIMPLE_CONVERSATION_PARAMS,
+            *ZAI_TOOL_CONVERSATION_PARAMS,
         ],
     )
     async def test_backend_complete(
@@ -117,6 +125,8 @@ class TestBackend:
             *FIREWORKS_STREAMED_TOOL_CONVERSATION_PARAMS,
             *MISTRAL_STREAMED_SIMPLE_CONVERSATION_PARAMS,
             *MISTRAL_STREAMED_TOOL_CONVERSATION_PARAMS,
+            *ZAI_STREAMED_SIMPLE_CONVERSATION_PARAMS,
+            *ZAI_STREAMED_TOOL_CONVERSATION_PARAMS,
         ],
     )
     async def test_backend_complete_streaming(
@@ -173,6 +183,13 @@ class TestBackend:
                         result.usage.completion_tokens
                         == expected_result["usage"]["completion_tokens"]
                     )
+
+                    # Check reasoning_content if present in expected result
+                    if "reasoning_content" in expected_result:
+                        assert (
+                            result.message.reasoning_content
+                            == expected_result["reasoning_content"]
+                        )
 
                     if result.message.tool_calls is None:
                         continue

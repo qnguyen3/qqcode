@@ -289,6 +289,11 @@ DEFAULT_PROVIDERS = [
         api_style="anthropic",
         backend=Backend.ANTHROPIC,
     ),
+    ProviderConfig(
+        name="zai",
+        api_base="https://api.z.ai/api/coding/paas/v4",
+        api_key_env_var="ZAI_API_KEY",
+    ),
 ]
 
 DEFAULT_MODELS = [
@@ -382,6 +387,22 @@ DEFAULT_MODELS = [
         provider="anthropic",
         alias="claude-opus-4.5:thinking",
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
+    ),
+    # Z.ai GLM models (thinking enabled by default)
+    ModelConfig(
+        name="glm-4.6",
+        provider="zai",
+        alias="zai/glm-4.6",
+    ),
+    ModelConfig(
+        name="glm-4.5",
+        provider="zai",
+        alias="zai/glm-4.5",
+    ),
+    ModelConfig(
+        name="glm-4.5-air",
+        provider="zai",
+        alias="zai/glm-4.5-air",
     ),
 ]
 
