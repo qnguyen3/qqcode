@@ -201,4 +201,6 @@ result-*
 
 # Tests run the agent in the playground, we don't need to keep the session files
 tests/playground/*
-.
+
+# Documentation files in .github (generated/maintained separately)
+.github/*.md
