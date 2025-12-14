@@ -25,6 +25,7 @@ logger = getLogger("vibe")
 
 if TYPE_CHECKING:
     from vibe.core.config import MCPHttp, MCPStdio, MCPStreamableHttp, VibeConfig
+    from vibe.core.skills.manager import SkillManager
 
 
 class NoSuchToolError(Exception):
@@ -41,8 +42,11 @@ class ToolManager:
     should have its own ToolManager instance.
     """
 
-    def __init__(self, config: VibeConfig) -> None:
+    def __init__(
+        self, config: VibeConfig, skill_manager: SkillManager | None = None
+    ) -> None:
         self._config = config
+        self._skill_manager = skill_manager
         self._instances: dict[str, BaseTool] = {}
         self._search_paths: list[Path] = self._compute_search_paths(config)
 
@@ -266,6 +270,17 @@ class ToolManager:
 
         tool_class = self._available[tool_name]
         tool_config = self.get_tool_config(tool_name)
+
+        # Special handling for the Skill tool - inject SkillManager
+        if tool_name == "skill" and self._skill_manager is not None:
+            from vibe.core.tools.builtins.skill import Skill, SkillConfig
+
+            if isinstance(tool_config, SkillConfig):
+                self._instances[tool_name] = Skill.create_with_skill_manager(
+                    tool_config, self._skill_manager
+                )
+                return self._instances[tool_name]
+
         self._instances[tool_name] = tool_class.from_config(tool_config)
         return self._instances[tool_name]
 
