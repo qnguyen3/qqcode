@@ -1,4 +1,4 @@
-name: Release to Pipy
+name: Release to PyPI
 
 on:
   release:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/mistral-vibe
+      url: https://pypi.org/p/qqcode
     permissions:
       id-token: write
       contents: read
@@ -40,5 +40,5 @@ jobs:
           path: dist/
 
       - name: Publish distribution to PyPI
-        if: github.repository == 'mistralai/mistral-vibe'
+        if: github.repository == 'qnguyen3/qqcode'
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0

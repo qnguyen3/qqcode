@@ -60,27 +60,23 @@ jobs:
       - name: Build with PyInstaller
         run: uv run pyinstaller vibe-acp.spec
 
-      - name: Get package version with uv (Unix)
-        id: get_version_unix
-        if: ${{ matrix.os != 'windows' }}
-        run: python -c "import subprocess; version = subprocess.check_output(['uv', 'version']).decode().split()[1]; print(f'version={version}')" >> $GITHUB_OUTPUT
-
-      - name: Get package version with uv (Windows)
-        id: get_version_windows
-        if: ${{ matrix.os == 'windows' }}
-        shell: pwsh
-        run: python -c "import subprocess; version = subprocess.check_output(['uv', 'version']).decode().split()[1]; print(f'version={version}')" >> $env:GITHUB_OUTPUT
+      - name: Get package version from pyproject.toml
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Upload binary as artifact (Unix)
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: ${{ matrix.os != 'windows' }}
         with:
-          name: vibe-acp-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.get_version_unix.outputs.version }}
+          name: qqcode-acp-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.get_version.outputs.version }}
           path: dist/vibe-acp
 
       - name: Upload binary as artifact (Windows)
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: ${{ matrix.os == 'windows' }}
         with:
-          name: vibe-acp-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.get_version_windows.outputs.version }}
+          name: qqcode-acp-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.get_version.outputs.version }}
           path: dist/vibe-acp.exe
