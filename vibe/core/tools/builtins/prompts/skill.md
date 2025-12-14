@@ -29,3 +29,4 @@ Then follow the skill's instructions to create the landing page.
 - The skill content may reference other files in the skill's directory
 - Skills can provide their own workflows, templates, and guidelines
 - Once activated, follow the skill's instructions for the remainder of the task
+- After activated, check out the triggered skill folder to find all related scripts, extra instructions, etc.
