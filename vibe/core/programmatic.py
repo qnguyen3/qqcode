@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 import json
 import sys
 from typing import Any, Literal
@@ -18,7 +19,6 @@ from vibe.core.types import (
     StreamEventType,
 )
 from vibe.core.utils import ConversationLimitException, logger
-
 
 type ExecutionMode = Literal["plan", "interactive", "auto-approve"]
 
@@ -183,12 +183,11 @@ def run_programmatic(
     # Create formatter with agent's session_id for VSCode output format
     formatter = create_formatter(output_format, session_id=agent.session_id)
 
-    # Set up approval callback for interactive mode
-    if mode == "interactive" and isinstance(formatter, VScodeJsonFormatter):
-        agent.set_approval_callback(_create_stdin_approval_callback(formatter))
-
-    # Always set plan approval callback for VSCode output format
+    # Always set up approval callbacks for VSCode output format
+    # The agent's mode determines whether they're used, but they must be available
+    # for mode transitions (e.g., plan -> interactive after plan approval)
     if isinstance(formatter, VScodeJsonFormatter):
+        agent.set_approval_callback(_create_stdin_approval_callback(formatter))
         agent.plan_approval_callback = _create_stdin_plan_approval_callback(formatter)
 
     # Now set the message observer
