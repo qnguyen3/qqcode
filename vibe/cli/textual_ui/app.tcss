@@ -757,3 +757,69 @@ ContextProgress {
     margin: 0;
     color: $foreground;
 }
+
+/* Conversations App Styles */
+#conversations-app {
+    width: 100%;
+    height: auto;
+    background: $background;
+    border: round $foreground-muted;
+    padding: 0 1;
+    margin: 0 2 1 2;
+}
+
+#conversations-content {
+    width: 100%;
+    height: auto;
+}
+
+.conversations-title {
+    height: auto;
+    text-style: bold;
+    color: $primary;
+}
+
+.conversations-option {
+    height: auto;
+    color: $foreground;
+}
+
+.conversations-selected {
+    color: $primary;
+    text-style: bold;
+}
+
+.conversations-unselected {
+    color: $foreground;
+}
+
+.conversations-empty {
+    height: auto;
+    color: $text-muted;
+}
+
+.conversations-help {
+    height: auto;
+    color: $text-muted;
+}
+
+/* Historical Message Styles */
+.historical-tool-call {
+    width: 100%;
+    height: auto;
+    margin-top: 0;
+    margin-left: 2;
+    color: $text-muted;
+}
+
+.historical-tool-result {
+    width: 100%;
+    height: auto;
+    margin-top: 0;
+    margin-left: 2;
+    color: $text-muted;
+
+    &.historical-tool-result-error {
+        color: $text-error;
+    }
+}

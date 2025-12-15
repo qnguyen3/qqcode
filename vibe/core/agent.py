@@ -63,9 +63,11 @@ from vibe.core.utils import (
     is_user_cancellation_event,
 )
 
-# Tools allowed in Plan Mode (read-only operations + plan submission/exit)
+# Tools allowed in Plan Mode (read-only operations + plan submission)
+# Note: exit_plan_mode is NOT included because mode switching happens
+# automatically through submit_plan's approval callback
 PLAN_MODE_ALLOWED_TOOLS = frozenset(
-    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode", "bash", "skill"}
+    {"read_file", "grep", "todo", "submit_plan", "bash", "skill"}
 )
 
 
@@ -91,6 +93,17 @@ class LLMResponseError(AgentError):
     """Raised when LLM response is malformed or missing expected data."""
 
 
+def _mode_string_to_agent_mode(mode_string: str) -> AgentMode | None:
+    """Convert mode string from plan approval to AgentMode enum."""
+    match mode_string:
+        case "interactive":
+            return AgentMode.INTERACTIVE
+        case "auto-approve" | "auto_approve":
+            return AgentMode.AUTO_APPROVE
+        case _:
+            return None
+
+
 class Agent:
     def __init__(
         self,
@@ -102,6 +115,7 @@ class Agent:
         max_price: float | None = None,
         backend: BackendLike | None = None,
         enable_streaming: bool = False,
+        session_id: str | None = None,
     ) -> None:
         self.config = config
 
@@ -121,8 +135,16 @@ class Agent:
         self.enable_streaming = enable_streaming
         self._setup_middleware(max_turns, max_price)
 
+        # Support both mode and legacy auto_approve parameter - set mode before system prompt
+        if mode is not None:
+            self._mode = mode
+        elif auto_approve:
+            self._mode = AgentMode.AUTO_APPROVE
+        else:
+            self._mode = AgentMode.INTERACTIVE
+
         system_prompt = get_universal_system_prompt(
-            self.tool_manager, config, skill_manager=self.skill_manager
+            self.tool_manager, config, skill_manager=self.skill_manager, mode=self._mode.value
         )
 
         self.messages = [LLMMessage(role=Role.system, content=system_prompt)]
@@ -139,26 +161,26 @@ class Agent:
         except ValueError:
             pass
 
-        # Support both mode and legacy auto_approve parameter
-        if mode is not None:
-            self._mode = mode
-        elif auto_approve:
-            self._mode = AgentMode.AUTO_APPROVE
-        else:
-            self._mode = AgentMode.INTERACTIVE
-
         self.approval_callback: ApprovalCallback | None = None
         self.plan_approval_callback: (
             Callable[[str], Any] | None
         ) = None  # Callback for submit_plan approval
 
-        self.session_id = str(uuid4())
+        self.session_id = session_id or str(uuid4())
+
+        # Find existing session file if resuming to update it instead of creating new
+        existing_filepath = None
+        if session_id:
+            existing_filepath = InteractionLogger.find_session_by_id(
+                session_id, config.session_logging
+            )
 
         self.interaction_logger = InteractionLogger(
             config.session_logging,
             self.session_id,
             self._mode == AgentMode.AUTO_APPROVE,
             config.effective_workdir,
+            existing_filepath=existing_filepath,
         )
 
         self._last_chunk: LLMChunk | None = None
@@ -170,8 +192,10 @@ class Agent:
 
     @mode.setter
     def mode(self, value: AgentMode) -> None:
-        """Set the agent mode."""
-        self._mode = value
+        """Set the agent mode and regenerate system prompt if mode changed."""
+        if self._mode != value:
+            self._mode = value
+            self._regenerate_system_prompt_for_mode()
 
     @property
     def auto_approve(self) -> bool:
@@ -282,17 +306,8 @@ class Agent:
             messages=self.messages, stats=self.stats, config=self.config
         )
 
-    def _get_plan_mode_prefix(self) -> str:
-        """Get the plan mode instructions prefix for user messages."""
-        if self._mode != AgentMode.PLAN:
-            return ""
-        return UtilityPrompt.PLAN_MODE.read() + "\n\n---\n\n"
-
     async def _conversation_loop(self, user_msg: str) -> AsyncGenerator[BaseEvent]:
-        # Prepend plan mode instructions if in plan mode
-        plan_prefix = self._get_plan_mode_prefix()
-        full_msg = f"{plan_prefix}{user_msg}" if plan_prefix else user_msg
-        self.messages.append(LLMMessage(role=Role.user, content=full_msg))
+        self.messages.append(LLMMessage(role=Role.user, content=user_msg))
         self.stats.steps += 1
 
         try:
@@ -641,12 +656,26 @@ class Agent:
 
                 self.stats.tool_calls_succeeded += 1
 
+                # Check for mode change from plan approval
+                if (
+                    hasattr(result_model, "execution_mode")
+                    and result_model.execution_mode
+                    and hasattr(result_model, "approved")
+                    and result_model.approved
+                ):
+                    new_mode = _mode_string_to_agent_mode(result_model.execution_mode)
+                    if new_mode and new_mode != self._mode:
+                        self._mode = new_mode
+                        self._regenerate_system_prompt_for_mode()
+                        yield ModeChangedEvent(new_mode=new_mode)
+
                 # Check for mode change signals in tool result (legacy)
                 if (
                     hasattr(result_model, "mode_change")
                     and result_model.mode_change == "plan"
                 ):
                     self._mode = AgentMode.PLAN
+                    self._regenerate_system_prompt_for_mode()
                     yield ModeChangedEvent(new_mode=AgentMode.PLAN)
 
             except asyncio.CancelledError:
@@ -836,20 +865,20 @@ class Agent:
         # In plan mode, use special configuration for bash tool
         if self._mode == AgentMode.PLAN and tool_name == "bash":
             from vibe.core.tools.builtins.bash import Bash, BashPlanModeConfig
-            
+
             # Get the tool class
             tool_class = self.tool_manager._available.get(tool_name)
             if tool_class is None:
                 raise Exception(f"Tool '{tool_name}' not found")
-            
+
             # Create plan mode config
             plan_mode_config = BashPlanModeConfig()
             if self.config.workdir is not None:
                 plan_mode_config.workdir = self.config.workdir
-            
+
             # Return a new instance with plan mode config
             return tool_class.from_config(plan_mode_config)
-        
+
         # For all other cases, use the normal tool manager
         return self.tool_manager.get(tool_name)
 
@@ -1098,6 +1127,16 @@ class Agent:
             )
             raise
 
+    def _regenerate_system_prompt_for_mode(self) -> None:
+        """Regenerate the system prompt when mode changes."""
+        new_system_prompt = get_universal_system_prompt(
+            self.tool_manager, self.config, skill_manager=self.skill_manager, mode=self._mode.value
+        )
+        if len(self.messages) > 0:
+            self.messages[0] = LLMMessage(role=Role.system, content=new_system_prompt)
+        else:
+            self.messages.insert(0, LLMMessage(role=Role.system, content=new_system_prompt))
+
     async def reload_with_initial_messages(
         self,
         config: VibeConfig | None = None,
@@ -1120,7 +1159,7 @@ class Agent:
         self.tool_manager = ToolManager(self.config, skill_manager=self.skill_manager)
 
         new_system_prompt = get_universal_system_prompt(
-            self.tool_manager, self.config, skill_manager=self.skill_manager
+            self.tool_manager, self.config, skill_manager=self.skill_manager, mode=self._mode.value
         )
         self.messages = [LLMMessage(role=Role.system, content=new_system_prompt)]
         did_system_prompt_change = old_system_prompt != new_system_prompt

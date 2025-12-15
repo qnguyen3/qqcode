@@ -21,6 +21,11 @@ from vibe.cli.textual_ui.widgets.chat_input import ChatInputContainer
 from vibe.cli.textual_ui.widgets.compact import CompactMessage
 from vibe.cli.textual_ui.widgets.config_app import ConfigApp
 from vibe.cli.textual_ui.widgets.context_progress import ContextProgress, TokenState
+from vibe.cli.textual_ui.widgets.conversations_app import ConversationsApp
+from vibe.cli.textual_ui.widgets.history_message import (
+    HistoricalToolCall,
+    HistoricalToolResult,
+)
 from vibe.cli.textual_ui.widgets.loading import LoadingWidget
 from vibe.cli.textual_ui.widgets.messages import (
     AssistantMessage,
@@ -46,6 +51,7 @@ from vibe.core import __version__ as CORE_VERSION
 from vibe.core.agent import Agent
 from vibe.core.autocompletion.path_prompt_adapter import render_path_prompt
 from vibe.core.config import HISTORY_FILE, VibeConfig
+from vibe.core.interaction_logger import InteractionLogger
 from vibe.core.tools.base import BaseToolConfig, ToolPermission
 from vibe.core.types import (
     AgentMode,
@@ -66,6 +72,7 @@ from vibe.core.utils import (
 class BottomApp(StrEnum):
     Approval = auto()
     Config = auto()
+    Conversations = auto()
     Input = auto()
     PlanApproval = auto()
 
@@ -325,6 +332,123 @@ class VibeApp(App):
             )
 
         await self._switch_to_input_app()
+
+    async def on_conversations_app_conversation_selected(
+        self, message: ConversationsApp.ConversationSelected
+    ) -> None:
+        """Handle selection of a past conversation."""
+        try:
+            # Load the selected session
+            loaded_messages, metadata = InteractionLogger.load_session(message.filepath)
+
+            # Clear current messages area
+            messages_area = self.query_one("#messages")
+            await messages_area.remove_children()
+
+            # Show session continuation message
+            session_time = metadata.get("start_time", "unknown time")
+            await self._mount_and_scroll(
+                AssistantMessage(
+                    f"Continuing session `{message.session_id}` from {session_time}"
+                )
+            )
+
+            # Restore UI from the last few turns
+            await self._restore_ui_from_messages(loaded_messages)
+
+            # Ensure agent is initialized
+            if not self.agent:
+                await self._initialize_agent()
+
+            # Load messages into agent (skip system messages)
+            if self.agent:
+                non_system_messages = [
+                    msg for msg in loaded_messages if msg.role != Role.system
+                ]
+                # Reset agent messages to just system prompt, then add loaded
+                self.agent.messages = self.agent.messages[:1]
+                self.agent.messages.extend(non_system_messages)
+                logger.info(
+                    "Loaded %d messages from session %s",
+                    len(non_system_messages),
+                    message.session_id,
+                )
+
+            # Update context progress
+            if self._context_progress and self.agent:
+                current_state = self._context_progress.tokens
+                self._context_progress.tokens = TokenState(
+                    max_tokens=current_state.max_tokens,
+                    current_tokens=self.agent.stats.context_tokens,
+                )
+
+        except Exception as e:
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    f"Failed to load session: {e}", collapsed=self._tools_collapsed
+                )
+            )
+
+        await self._switch_to_input_app()
+
+    async def on_conversations_app_conversations_closed(
+        self, message: ConversationsApp.ConversationsClosed
+    ) -> None:
+        """Handle closing the conversations dialog without selection."""
+        await self._switch_to_input_app()
+
+    async def _restore_ui_from_messages(
+        self, messages: list[LLMMessage], max_messages: int = 15
+    ) -> None:
+        """Restore UI state from saved messages.
+
+        Renders the last N messages to show conversation context.
+        """
+        # Skip system message and get last N messages
+        non_system = [msg for msg in messages if msg.role != Role.system]
+        recent_messages = non_system[-max_messages:] if non_system else []
+
+        for msg in recent_messages:
+            match msg.role:
+                case Role.user:
+                    if msg.content:
+                        await self._mount_and_scroll(UserMessage(msg.content))
+
+                case Role.assistant:
+                    # Show assistant content if present
+                    if msg.content:
+                        assistant_msg = AssistantMessage(
+                            msg.content, reasoning_content=msg.reasoning_content
+                        )
+                        await self._mount_and_scroll(assistant_msg)
+                        await assistant_msg.write_initial_content()
+
+                    # Show tool calls if present
+                    if msg.tool_calls:
+                        for tool_call in msg.tool_calls:
+                            if tool_call.function and tool_call.function.name:
+                                await self._mount_and_scroll(
+                                    HistoricalToolCall(
+                                        tool_call.function.name,
+                                        tool_call.function.arguments or "",
+                                    )
+                                )
+
+                case Role.tool:
+                    # Show tool result
+                    tool_name = msg.name or "tool"
+                    is_error = bool(
+                        msg.content
+                        and (
+                            "error" in msg.content.lower()[:50]
+                            or msg.content.startswith("Error:")
+                        )
+                    )
+                    await self._mount_and_scroll(
+                        HistoricalToolResult(
+                            tool_name, msg.content or "", is_error=is_error
+                        )
+                    )
 
     def _set_tool_permission_always(
         self, tool_name: str, save_permanently: bool = False
@@ -778,6 +902,22 @@ class VibeApp(App):
                 )
             )
 
+    async def _show_conversations(self) -> None:
+        """Show the conversations browser to select a past session."""
+        if not self.config.session_logging.enabled:
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    "Session logging is disabled. Enable it in config to browse past conversations.",
+                    collapsed=self._tools_collapsed,
+                )
+            )
+            return
+
+        if self._current_bottom_app == BottomApp.Conversations:
+            return
+
+        await self._switch_to_conversations_app()
+
     async def _compact_history(self) -> None:
         if self._agent_running:
             await self._mount_and_scroll(
@@ -854,6 +994,32 @@ class VibeApp(App):
 
         self.call_after_refresh(config_app.focus)
 
+    async def _switch_to_conversations_app(self) -> None:
+        if self._current_bottom_app == BottomApp.Conversations:
+            return
+
+        bottom_container = self.query_one("#bottom-app-container")
+
+        try:
+            chat_input_container = self.query_one(ChatInputContainer)
+            await chat_input_container.remove()
+        except Exception:
+            pass
+
+        if self._mode_indicator:
+            self._mode_indicator.display = False
+
+        # Load sessions list for current project only
+        sessions = InteractionLogger.list_sessions(
+            self.config.session_logging, workdir=self.config.effective_workdir
+        )
+
+        conversations_app = ConversationsApp(sessions)
+        await bottom_container.mount(conversations_app)
+        self._current_bottom_app = BottomApp.Conversations
+
+        self.call_after_refresh(conversations_app.focus)
+
     async def _switch_to_approval_app(self, tool_name: str, tool_args: dict) -> None:
         bottom_container = self.query_one("#bottom-app-container")
 
@@ -884,6 +1050,12 @@ class VibeApp(App):
         try:
             config_app = self.query_one("#config-app")
             await config_app.remove()
+        except Exception:
+            pass
+
+        try:
+            conversations_app = self.query_one("#conversations-app")
+            await conversations_app.remove()
         except Exception:
             pass
 
@@ -931,6 +1103,8 @@ class VibeApp(App):
                     self.query_one(ChatInputContainer).focus_input()
                 case BottomApp.Config:
                     self.query_one(ConfigApp).focus()
+                case BottomApp.Conversations:
+                    self.query_one(ConversationsApp).focus()
                 case BottomApp.Approval:
                     self.query_one(ApprovalApp).focus()
                 case BottomApp.PlanApproval:
@@ -945,6 +1119,14 @@ class VibeApp(App):
             try:
                 config_app = self.query_one(ConfigApp)
                 config_app.action_close()
+            except Exception:
+                pass
+            return
+
+        if self._current_bottom_app == BottomApp.Conversations:
+            try:
+                conversations_app = self.query_one(ConversationsApp)
+                conversations_app.action_close()
             except Exception:
                 pass
             return

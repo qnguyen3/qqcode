@@ -294,6 +294,11 @@ DEFAULT_PROVIDERS = [
         api_base="https://api.z.ai/api/coding/paas/v4",
         api_key_env_var="ZAI_API_KEY",
     ),
+    ProviderConfig(
+        name="openai",
+        api_base="https://api.openai.com/v1",
+        api_key_env_var="OPENAI_API_KEY",
+    ),
 ]
 
 DEFAULT_MODELS = [
@@ -367,9 +372,7 @@ DEFAULT_MODELS = [
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
     ModelConfig(
-        name="claude-haiku-4-5-20251001",
-        provider="anthropic",
-        alias="claude-haiku-4.5",
+        name="claude-haiku-4-5-20251001", provider="anthropic", alias="claude-haiku-4.5"
     ),
     ModelConfig(
         name="claude-haiku-4-5-20251001",
@@ -378,9 +381,7 @@ DEFAULT_MODELS = [
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
     ModelConfig(
-        name="claude-opus-4-5-20251101",
-        provider="anthropic",
-        alias="claude-opus-4.5",
+        name="claude-opus-4-5-20251101", provider="anthropic", alias="claude-opus-4.5"
     ),
     ModelConfig(
         name="claude-opus-4-5-20251101",
@@ -389,21 +390,9 @@ DEFAULT_MODELS = [
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 2000}},
     ),
     # Z.ai GLM models (thinking enabled by default)
-    ModelConfig(
-        name="glm-4.6",
-        provider="zai",
-        alias="zai/glm-4.6",
-    ),
-    ModelConfig(
-        name="glm-4.5",
-        provider="zai",
-        alias="zai/glm-4.5",
-    ),
-    ModelConfig(
-        name="glm-4.5-air",
-        provider="zai",
-        alias="zai/glm-4.5-air",
-    ),
+    ModelConfig(name="glm-4.6", provider="zai", alias="zai/glm-4.6"),
+    ModelConfig(name="glm-4.5", provider="zai", alias="zai/glm-4.5"),
+    ModelConfig(name="glm-4.5-air", provider="zai", alias="zai/glm-4.5-air"),
 ]
 
 
@@ -609,9 +598,7 @@ class VibeConfig(BaseSettings):
                 "https://codestral.mistral.ai",
                 "https://api.mistral.ai",
             ]
-            ANTHROPIC_API_BASES = [
-                "https://api.anthropic.com",
-            ]
+            ANTHROPIC_API_BASES = ["https://api.anthropic.com"]
             is_mistral_api = any(
                 provider.api_base.startswith(api_base) for api_base in MISTRAL_API_BASES
             )

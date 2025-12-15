@@ -279,6 +279,34 @@ class OutputFormat(StrEnum):
     TEXT = auto()
     JSON = auto()
     STREAMING = auto()
+    VSCODE = auto()  # Structured streaming events for VSCode extension
+
+
+class StreamEventType(StrEnum):
+    """Event types for JSON streaming output (used by VSCode extension)."""
+
+    THREAD_STARTED = "thread.started"
+    ITEM_STARTED = "item.started"
+    ITEM_UPDATED = "item.updated"
+    ITEM_COMPLETED = "item.completed"
+    TURN_STARTED = "turn.started"
+    TURN_COMPLETED = "turn.completed"
+    TURN_FAILED = "turn.failed"
+    TOOL_CALL = "tool.call"
+    TOOL_RESULT = "tool.result"
+    TOOL_APPROVAL_REQUIRED = "tool.approval_required"
+    PLAN_APPROVAL_REQUIRED = "plan.approval_required"
+    ERROR = "error"
+    THINKING_STARTED = "thinking.started"
+    THINKING_UPDATED = "thinking.updated"
+    THINKING_COMPLETED = "thinking.completed"
+
+
+class StreamEvent(BaseModel):
+    """Base model for JSON streaming events."""
+
+    type: StreamEventType
+    timestamp: str | None = None
 
 
 type AsyncApprovalCallback = Callable[
