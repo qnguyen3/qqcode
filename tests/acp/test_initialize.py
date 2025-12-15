@@ -41,7 +41,7 @@ class TestACPInitialize:
             ),
         )
         assert response.agentInfo == Implementation(
-            name="@qqcode/qqcode", title="QQcode", version="1.0.1"
+            name="@qqcode/qqcode", title="QQcode", version="1.1.0"
         )
 
         assert response.authMethods == []
@@ -63,7 +63,7 @@ class TestACPInitialize:
             ),
         )
         assert response.agentInfo == Implementation(
-            name="@qqcode/qqcode", title="QQcode", version="1.0.1"
+            name="@qqcode/qqcode", title="QQcode", version="1.1.0"
         )
 
         assert response.authMethods is not None
