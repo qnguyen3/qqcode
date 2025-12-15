@@ -318,9 +318,12 @@ export class QQCodeBackend {
         } catch (error) {
             // If we received no events and process failed, report the error
             if (!receivedEvents) {
+                const errorMessage = error instanceof Error
+                    ? error.message
+                    : stderrBuffer || `Process failed with exit code ${exitCode}`;
                 yield {
                     kind: 'error',
-                    message: processError?.message || stderrBuffer || `Process failed with exit code ${exitCode}`
+                    message: errorMessage
                 };
             }
             throw error;

@@ -14,6 +14,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private availableModels: ModelInfo[] = [];
     private extensionContext: vscode.ExtensionContext;
 
+    // State management for webview communication
+    private webviewReady: boolean = false;
+    private pendingMessages: any[] = [];
+    private initializationPromise: Promise<void> | null = null;
+
     constructor(
         private readonly extensionUri: vscode.Uri,
         backend: QQCodeBackend,
@@ -21,6 +26,31 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     ) {
         this.backend = backend;
         this.extensionContext = extensionContext;
+
+        // Restore persisted state
+        this.restoreState();
+    }
+
+    /**
+     * Save state to workspace storage for persistence across webview recreations
+     */
+    private saveState(): void {
+        this.extensionContext.workspaceState.update('qqcode.currentSessionId', this.currentSessionId);
+        this.extensionContext.workspaceState.update('qqcode.messageHistory', this.messageHistory);
+    }
+
+    /**
+     * Restore state from workspace storage
+     */
+    private restoreState(): void {
+        this.currentSessionId = this.extensionContext.workspaceState.get<string | null>('qqcode.currentSessionId', null);
+        this.messageHistory = this.extensionContext.workspaceState.get<Array<{role: string; content: string}>>('qqcode.messageHistory', []);
+
+        // Also restore model from global state (already exists)
+        const savedModel = this.extensionContext.globalState.get<string>('qqcode.selectedModel');
+        if (savedModel) {
+            this.currentModel = savedModel;
+        }
     }
 
     resolveWebviewView(
@@ -29,6 +59,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         token: vscode.CancellationToken
     ) {
         this.view = webviewView;
+        this.webviewReady = false;
+        this.pendingMessages = [];
 
         webviewView.webview.options = {
             enableScripts: true,
@@ -40,6 +72,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Handle messages from webview
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
+                case 'webviewReady':
+                    // Webview is now ready to receive messages
+                    this.webviewReady = true;
+                    this.flushPendingMessages();
+                    // Now initialize the webview with data
+                    await this.initializeWebview();
+                    break;
                 case 'userMessage':
                     await this.handleUserMessage(data.text);
                     break;
@@ -61,23 +100,72 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // Load sessions on startup
-        this.refreshSessionsList();
+        // Handle visibility changes - refresh data when view becomes visible again
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible && this.webviewReady) {
+                // Refresh data when view becomes visible
+                this.refreshSessionsList();
+                this.refreshModelsList();
+            }
+        });
 
-        // Load models on startup
-        this.refreshModelsList();
+        // Handle webview disposal
+        webviewView.onDidDispose(() => {
+            this.webviewReady = false;
+            this.view = undefined;
+        });
+    }
 
-        // Restore saved model selection (global setting)
-        const savedModel = this.extensionContext.globalState.get<string>('qqcode.selectedModel');
-        if (savedModel) {
-            this.switchModel(savedModel);
+    /**
+     * Initialize the webview with all necessary data after it signals ready
+     */
+    private async initializeWebview(): Promise<void> {
+        // Load sessions and models in parallel
+        const sessionsPromise = this.refreshSessionsList();
+        const modelsPromise = this.refreshModelsList();
+
+        await Promise.all([sessionsPromise, modelsPromise]);
+
+        // Restore conversation state if we have a current session
+        if (this.currentSessionId && this.messageHistory.length > 0) {
+            // Restore messages to UI
+            for (const msg of this.messageHistory) {
+                this.addMessageToUI(msg.role, msg.content);
+            }
+
+            // Update session badge
+            this.sendToWebview({
+                type: 'updateCurrentSession',
+                sessionId: this.currentSessionId
+            });
         }
+
+        // Restore model selection
+        if (this.currentModel) {
+            this.sendToWebview({
+                type: 'updateCurrentModel',
+                modelAlias: this.currentModel
+            });
+        }
+    }
+
+    /**
+     * Flush pending messages that were queued before webview was ready
+     */
+    private flushPendingMessages(): void {
+        for (const msg of this.pendingMessages) {
+            this.view?.webview.postMessage(msg);
+        }
+        this.pendingMessages = [];
     }
 
     private async handleUserMessage(text: string) {
         // Add user message to UI
         this.addMessageToUI('user', text);
         this.messageHistory.push({ role: 'user', content: text });
+
+        // Track the session we're trying to continue (if any)
+        const requestedSessionId = this.currentSessionId;
 
         // Start streaming response
         let assistantMessage = '';
@@ -86,18 +174,29 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const config = vscode.workspace.getConfiguration('qqcode');
             const autoApprove = config.get<boolean>('autoApprove', false);
 
-            for await (const chunk of this.backend.streamPrompt(text, autoApprove, this.currentSessionId, this.currentModel || undefined)) {
+            for await (const chunk of this.backend.streamPrompt(text, autoApprove, this.currentSessionId || undefined, this.currentModel || undefined)) {
                 if (chunk.kind === 'session_started') {
-                    // Capture session_id from the first response
+                    const returnedSessionId = chunk.sessionId;
+
                     if (!this.currentSessionId) {
-                        this.currentSessionId = chunk.sessionId;
-                        console.log(`[QQCode] Captured new session ID: ${this.currentSessionId}`);
-                        // Update UI to reflect the new session
-                        this.sendToWebview({
-                            type: 'updateCurrentSession',
-                            sessionId: this.currentSessionId
-                        });
+                        // New conversation - capture the session ID
+                        this.currentSessionId = returnedSessionId;
+                        console.log(`[QQCode] New session started: ${this.currentSessionId}`);
+                    } else if (requestedSessionId && returnedSessionId !== requestedSessionId) {
+                        // Session ID mismatch - this shouldn't happen with proper --resume handling
+                        // but if it does, update to the new session ID
+                        console.warn(`[QQCode] Session ID mismatch! Requested: ${requestedSessionId}, Got: ${returnedSessionId}`);
+                        this.currentSessionId = returnedSessionId;
+                    } else {
+                        // Continuing existing session - verify it matches
+                        console.log(`[QQCode] Continuing session: ${this.currentSessionId}`);
                     }
+
+                    // Always update UI to reflect the current session
+                    this.sendToWebview({
+                        type: 'updateCurrentSession',
+                        sessionId: this.currentSessionId
+                    });
                 } else if (chunk.kind === 'text') {
                     assistantMessage += chunk.text;
                     this.updateAssistantMessage(chunk.accumulated);
@@ -112,6 +211,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
             this.messageHistory.push({ role: 'assistant', content: assistantMessage });
             this.finalizeAssistantMessage();
+
+            // Save state after successful message exchange
+            this.saveState();
 
             // Refresh sessions list after completing response
             await this.refreshSessionsList();
@@ -189,6 +291,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
      * Switch to a different conversation
      */
     private async switchToSession(sessionId: string | null): Promise<void> {
+        // If switching to the same session, just return
+        if (sessionId === this.currentSessionId) {
+            return;
+        }
+
         this.currentSessionId = sessionId;
 
         // Clear current UI
@@ -197,17 +304,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         if (sessionId) {
             // Load session history
-            const sessionData = await this.backend.getSession(sessionId);
-            if (sessionData) {
-                // Populate UI with history
-                for (const msg of sessionData.messages) {
-                    if (msg.role === 'user' || msg.role === 'assistant') {
-                        if (msg.content) {
-                            this.addMessageToUI(msg.role, msg.content);
-                            this.messageHistory.push({ role: msg.role, content: msg.content });
+            try {
+                const sessionData = await this.backend.getSession(sessionId);
+                if (sessionData) {
+                    // Populate UI with history
+                    for (const msg of sessionData.messages) {
+                        if (msg.role === 'user' || msg.role === 'assistant') {
+                            if (msg.content) {
+                                this.addMessageToUI(msg.role, msg.content);
+                                this.messageHistory.push({ role: msg.role, content: msg.content });
+                            }
                         }
                     }
                 }
+            } catch (error) {
+                console.error(`[QQCode] Failed to load session ${sessionId}:`, error);
+                this.showError(`Failed to load conversation: ${error}`);
             }
         }
 
@@ -216,6 +328,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             type: 'updateCurrentSession',
             sessionId: this.currentSessionId
         });
+
+        // Save the current session selection
+        this.saveState();
     }
 
     /**
@@ -248,6 +363,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
      * Switch to a different model
      */
     private async switchModel(modelAlias: string): Promise<void> {
+        // Skip if already on this model
+        if (modelAlias === this.currentModel) {
+            return;
+        }
+
         this.currentModel = modelAlias;
 
         // Persist in global VSCode state (not workspace-specific)
@@ -258,13 +378,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             type: 'updateCurrentModel',
             modelAlias: modelAlias
         });
+
+        console.log(`[QQCode] Switched to model: ${modelAlias}`);
     }
 
     /**
-     * Send message to webview
+     * Send message to webview, queuing if not ready
      */
     private sendToWebview(message: any): void {
-        this.view?.webview.postMessage(message);
+        if (this.webviewReady && this.view) {
+            this.view.webview.postMessage(message);
+        } else {
+            // Queue message to be sent when webview is ready
+            this.pendingMessages.push(message);
+        }
     }
 
     private getHtmlContent(webview: vscode.Webview): string {
@@ -550,10 +677,46 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
             let currentAssistantMessage = null;
 
+            // Track UI state for preservation
+            let uiState = {
+                modelControlsVisible: false,
+                conversationControlsVisible: false,
+                currentSessionId: null,
+                currentModel: null
+            };
+
+            // Restore state if available (for webview persistence)
+            const previousState = vscode.getState();
+            if (previousState) {
+                uiState = { ...uiState, ...previousState };
+                // Apply restored visibility state
+                if (uiState.modelControlsVisible) {
+                    modelControls.style.display = 'block';
+                }
+                if (uiState.conversationControlsVisible) {
+                    conversationControls.style.display = 'block';
+                }
+                if (uiState.currentSessionId) {
+                    sessionSelector.value = uiState.currentSessionId;
+                    currentSessionBadge.style.display = 'block';
+                    sessionIdDisplay.textContent = uiState.currentSessionId;
+                }
+                if (uiState.currentModel) {
+                    modelSelector.value = uiState.currentModel;
+                }
+            }
+
+            // Save state helper
+            function saveUIState() {
+                vscode.setState(uiState);
+            }
+
             // Model selector event listener
             modelSelector.addEventListener('change', (e) => {
                 const modelAlias = e.target.value;
                 if (modelAlias) {
+                    uiState.currentModel = modelAlias;
+                    saveUIState();
                     vscode.postMessage({
                         type: 'selectModel',
                         modelAlias: modelAlias
@@ -630,9 +793,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     case 'updateSessionsList':
                         updateSessionsDropdown(message.sessions);
                         conversationControls.style.display = 'block';
+                        uiState.conversationControlsVisible = true;
+                        saveUIState();
                         break;
                     case 'updateCurrentSession':
                         updateCurrentSessionBadge(message.sessionId);
+                        uiState.currentSessionId = message.sessionId;
+                        saveUIState();
                         break;
                     case 'clearMessages':
                         messagesDiv.innerHTML = '';
@@ -640,17 +807,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         break;
                     case 'hideConversationControls':
                         conversationControls.style.display = 'none';
+                        uiState.conversationControlsVisible = false;
+                        saveUIState();
                         showError('Session management disabled: ' + message.reason);
                         break;
                     case 'updateModelsList':
                         updateModelsDropdown(message.models);
                         modelControls.style.display = 'block';
+                        uiState.modelControlsVisible = true;
+                        saveUIState();
                         break;
                     case 'updateCurrentModel':
                         modelSelector.value = message.modelAlias || '';
+                        uiState.currentModel = message.modelAlias;
+                        saveUIState();
                         break;
                     case 'hideModelControls':
                         modelControls.style.display = 'none';
+                        uiState.modelControlsVisible = false;
+                        saveUIState();
                         showError('Model loading failed: ' + message.reason);
                         break;
                 }
@@ -727,6 +902,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
 
             function updateSessionsDropdown(sessions) {
+                // Preserve current selection before updating
+                const currentValue = sessionSelector.value;
+
                 // Keep "New Conversation" option
                 sessionSelector.innerHTML = '<option value="">New Conversation</option>';
 
@@ -747,6 +925,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     option.textContent = preview + '... (' + timeStr + ')';
                     sessionSelector.appendChild(option);
                 });
+
+                // Restore selection if it still exists in the list
+                if (currentValue) {
+                    sessionSelector.value = currentValue;
+                } else if (uiState.currentSessionId) {
+                    sessionSelector.value = uiState.currentSessionId;
+                }
             }
 
             function updateCurrentSessionBadge(sessionId) {
@@ -761,6 +946,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
 
             function updateModelsDropdown(models) {
+                // Preserve current selection before updating
+                const currentValue = modelSelector.value || uiState.currentModel;
+
                 // Group models by provider
                 const providers = {};
                 models.forEach(model => {
@@ -794,7 +982,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
                     modelSelector.appendChild(optgroup);
                 });
+
+                // Restore selection if it exists in the list
+                if (currentValue) {
+                    modelSelector.value = currentValue;
+                }
             }
+
+            // Signal to extension that webview is ready to receive messages
+            vscode.postMessage({ type: 'webviewReady' });
 
             // Focus input on load
             userInput.focus();
