@@ -158,7 +158,7 @@ QQcode is configured via a `config.toml` file. It looks for this file first in `
 
 QQcode supports multiple AI providers:
 
-- **Anthropic Claude Max subscription**: Access Claude models with your Claude.ai subscription
+- **Anthropic Claude Max subscription**: Access Claude models with your Claude.ai subscription (run `qqcode --login anthropic`)
 - **OpenRouter**: Access multiple AI models through a single API
 - **Mistral AI**: Use Mistral's AI models directly
 
