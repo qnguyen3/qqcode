@@ -332,6 +332,16 @@ export class QQCodeBackend {
      */
     private parseEvent(event: QQCodeEvent): StreamChunk | null {
         switch (event.type) {
+            case 'thread.started':
+                // Emit session_id if present
+                if (event.session_id) {
+                    return {
+                        kind: 'session_started',
+                        sessionId: event.session_id
+                    };
+                }
+                return null;
+
             case 'item.updated':
                 return {
                     kind: 'text',
@@ -369,7 +379,6 @@ export class QQCodeBackend {
                 };
 
             // Metadata events - log but don't yield
-            case 'thread.started':
             case 'turn.started':
             case 'turn.completed':
             case 'item.completed':

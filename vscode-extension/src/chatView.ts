@@ -87,7 +87,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const autoApprove = config.get<boolean>('autoApprove', false);
 
             for await (const chunk of this.backend.streamPrompt(text, autoApprove, this.currentSessionId, this.currentModel || undefined)) {
-                if (chunk.kind === 'text') {
+                if (chunk.kind === 'session_started') {
+                    // Capture session_id from the first response
+                    if (!this.currentSessionId) {
+                        this.currentSessionId = chunk.sessionId;
+                        console.log(`[QQCode] Captured new session ID: ${this.currentSessionId}`);
+                        // Update UI to reflect the new session
+                        this.sendToWebview({
+                            type: 'updateCurrentSession',
+                            sessionId: this.currentSessionId
+                        });
+                    }
+                } else if (chunk.kind === 'text') {
                     assistantMessage += chunk.text;
                     this.updateAssistantMessage(chunk.accumulated);
                 } else if (chunk.kind === 'tool_call') {

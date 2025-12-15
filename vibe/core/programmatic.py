@@ -32,16 +32,26 @@ def run_programmatic(
     Returns:
         The final assistant response text, or None if no response
     """
-    formatter = create_formatter(output_format)
-
+    # Create agent first to get session_id
     agent = Agent(
         config,
         mode=AgentMode.AUTO_APPROVE if auto_approve else AgentMode.PLAN,
-        message_observer=formatter.on_message_added,
+        message_observer=None,  # Will set observer after creating formatter
         max_turns=max_turns,
         max_price=max_price,
         enable_streaming=False,
     )
+
+    # Create formatter with session_id for VSCode output format
+    formatter = create_formatter(output_format, session_id=agent.session_id)
+
+    # Now set the message observer
+    agent.message_observer = formatter.on_message_added
+    # Flush existing messages to the observer
+    for msg in agent.messages:
+        formatter.on_message_added(msg)
+    agent._last_observed_message_index = len(agent.messages)
+
     logger.info("USER: %s", prompt)
 
     async def _async_run() -> str | None:

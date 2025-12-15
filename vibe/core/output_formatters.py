@@ -86,7 +86,7 @@ class VScodeJsonFormatter(OutputFormatter):
     """JSON formatter for VSCode extension integration.
 
     Emits structured streaming events that the VSCode extension can parse:
-    - thread.started: Conversation begins
+    - thread.started: Conversation begins (includes session_id)
     - item.updated: Incremental content chunks
     - tool.call: Tool execution requests
     - tool.result: Tool execution results
@@ -94,9 +94,10 @@ class VScodeJsonFormatter(OutputFormatter):
     - error: Error events
     """
 
-    def __init__(self, stream: TextIO = sys.stdout) -> None:
+    def __init__(self, stream: TextIO = sys.stdout, session_id: str | None = None) -> None:
         super().__init__(stream)
-        self.thread_id = str(uuid.uuid4())[:8]
+        self.session_id = session_id or str(uuid.uuid4())[:8]
+        self.thread_id = self.session_id  # Keep thread_id for backward compatibility
         self.current_item_id: str | None = None
         self.accumulated_content = ""
         self.accumulated_thinking = ""
@@ -116,7 +117,10 @@ class VScodeJsonFormatter(OutputFormatter):
     def _ensure_thread_started(self) -> None:
         """Emit thread.started event if not already emitted."""
         if not self.thread_started:
-            self._emit_event(StreamEventType.THREAD_STARTED, {"thread_id": self.thread_id})
+            self._emit_event(StreamEventType.THREAD_STARTED, {
+                "thread_id": self.thread_id,
+                "session_id": self.session_id
+            })
             self.thread_started = True
 
     def _generate_item_id(self) -> str:
@@ -224,7 +228,7 @@ class VScodeJsonFormatter(OutputFormatter):
 
 
 def create_formatter(
-    format_type: OutputFormat, stream: TextIO = sys.stdout
+    format_type: OutputFormat, stream: TextIO = sys.stdout, session_id: str | None = None
 ) -> OutputFormatter:
     formatters = {
         OutputFormat.TEXT: TextOutputFormatter,
@@ -234,4 +238,7 @@ def create_formatter(
     }
 
     formatter_class = formatters.get(format_type, TextOutputFormatter)
+    # VScodeJsonFormatter supports session_id parameter
+    if format_type == OutputFormat.VSCODE and session_id:
+        return formatter_class(stream, session_id=session_id)
     return formatter_class(stream)

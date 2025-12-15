@@ -20,6 +20,7 @@ export interface QQCodeEvent {
 
     // thread.started
     thread_id?: string;
+    session_id?: string;
 
     // item.updated
     item_id?: string;
@@ -57,7 +58,8 @@ export type StreamChunk =
     | { kind: 'tool_call'; toolName: string; toolCallId: string; args: any }
     | { kind: 'tool_result'; toolCallId: string; toolName: string; result: string; isError: boolean }
     | { kind: 'thinking'; text: string }
-    | { kind: 'error'; message: string };
+    | { kind: 'error'; message: string }
+    | { kind: 'session_started'; sessionId: string };
 
 export interface SessionSummary {
     session_id: string;
