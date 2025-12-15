@@ -277,9 +277,8 @@ body::before {
    Messages
    ================================ */
 .message {
-    max-width: 92%;
-    padding: var(--qq-space-3) var(--qq-space-4);
-    border-radius: var(--qq-radius-lg);
+    width: 100%;
+    padding: var(--qq-space-4) 0;
     line-height: 1.6;
     position: relative;
     animation: messageSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -299,19 +298,16 @@ body::before {
 }
 
 .message.user {
-    align-self: flex-end;
-    background: var(--qq-accent-primary-dim);
-    color: white;
-    font-weight: 500;
-    border-bottom-right-radius: var(--qq-radius-sm);
-    box-shadow: 0 2px 8px rgba(31, 111, 235, 0.2);
+    background: rgba(88, 166, 255, 0.06);
+    border-left: 2px solid var(--qq-accent-primary);
+    padding: var(--qq-space-3) var(--qq-space-4);
+    margin: var(--qq-space-2) 0;
+    border-radius: var(--qq-radius-md);
 }
 
 .message.assistant {
-    align-self: flex-start;
-    background: var(--qq-bg-elevated);
-    border: 1px solid var(--qq-border-default);
-    border-bottom-left-radius: var(--qq-radius-sm);
+    background: transparent;
+    padding: var(--qq-space-4) 0;
 }
 
 .message.assistant.streaming::after {
@@ -346,9 +342,10 @@ body::before {
 }
 
 .message.user code {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(88, 166, 255, 0.15);
     padding: 2px 5px;
     border-radius: var(--qq-radius-sm);
+    color: var(--qq-accent-primary);
 }
 
 .message.assistant code:not(pre code) {
@@ -356,6 +353,11 @@ body::before {
     padding: 2px 5px;
     border-radius: var(--qq-radius-sm);
     color: var(--qq-accent-primary);
+}
+
+.message.user pre {
+    background: rgba(13, 17, 23, 0.6);
+    border-color: rgba(88, 166, 255, 0.2);
 }
 
 /* ================================
