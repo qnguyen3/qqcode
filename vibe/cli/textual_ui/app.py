@@ -1009,8 +1009,10 @@ class VibeApp(App):
         if self._mode_indicator:
             self._mode_indicator.display = False
 
-        # Load sessions list
-        sessions = InteractionLogger.list_sessions(self.config.session_logging)
+        # Load sessions list for current project only
+        sessions = InteractionLogger.list_sessions(
+            self.config.session_logging, workdir=self.config.effective_workdir
+        )
 
         conversations_app = ConversationsApp(sessions)
         await bottom_container.mount(conversations_app)

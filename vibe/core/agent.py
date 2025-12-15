@@ -102,6 +102,7 @@ class Agent:
         max_price: float | None = None,
         backend: BackendLike | None = None,
         enable_streaming: bool = False,
+        session_id: str | None = None,
     ) -> None:
         self.config = config
 
@@ -152,13 +153,21 @@ class Agent:
             Callable[[str], Any] | None
         ) = None  # Callback for submit_plan approval
 
-        self.session_id = str(uuid4())
+        self.session_id = session_id or str(uuid4())
+
+        # Find existing session file if resuming to update it instead of creating new
+        existing_filepath = None
+        if session_id:
+            existing_filepath = InteractionLogger.find_session_by_id(
+                session_id, config.session_logging
+            )
 
         self.interaction_logger = InteractionLogger(
             config.session_logging,
             self.session_id,
             self._mode == AgentMode.AUTO_APPROVE,
             config.effective_workdir,
+            existing_filepath=existing_filepath,
         )
 
         self._last_chunk: LLMChunk | None = None
@@ -643,15 +652,6 @@ class Agent:
                     self._regenerate_system_prompt_for_mode()
                     yield ModeChangedEvent(new_mode=AgentMode.PLAN)
 
-                # Check for exit_plan_mode signal
-                if hasattr(result_model, "exit_plan_mode") and result_model.exit_plan_mode:
-                    # Exit plan mode back to interactive
-                    old_mode = self._mode
-                    self._mode = AgentMode.INTERACTIVE
-                    if old_mode != self._mode:
-                        self._regenerate_system_prompt_for_mode()
-                        yield ModeChangedEvent(new_mode=AgentMode.INTERACTIVE)
-
             except asyncio.CancelledError:
                 cancel = str(
                     get_user_cancellation_message(CancellationReason.TOOL_INTERRUPTED)
@@ -839,20 +839,20 @@ class Agent:
         # In plan mode, use special configuration for bash tool
         if self._mode == AgentMode.PLAN and tool_name == "bash":
             from vibe.core.tools.builtins.bash import Bash, BashPlanModeConfig
-            
+
             # Get the tool class
             tool_class = self.tool_manager._available.get(tool_name)
             if tool_class is None:
                 raise Exception(f"Tool '{tool_name}' not found")
-            
+
             # Create plan mode config
             plan_mode_config = BashPlanModeConfig()
             if self.config.workdir is not None:
                 plan_mode_config.workdir = self.config.workdir
-            
+
             # Return a new instance with plan mode config
             return tool_class.from_config(plan_mode_config)
-        
+
         # For all other cases, use the normal tool manager
         return self.tool_manager.get(tool_name)
 

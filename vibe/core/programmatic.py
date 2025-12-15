@@ -17,6 +17,7 @@ def run_programmatic(
     output_format: OutputFormat = OutputFormat.TEXT,
     previous_messages: list[LLMMessage] | None = None,
     auto_approve: bool = False,
+    session_id: str | None = None,
 ) -> str | None:
     """Run in programmatic mode: execute prompt and return the assistant response.
 
@@ -28,11 +29,12 @@ def run_programmatic(
         output_format: Format for the output
         previous_messages: Optional messages from a previous session to continue
         auto_approve: Whether to automatically approve tool execution
+        session_id: Optional session ID to preserve when resuming a session
 
     Returns:
         The final assistant response text, or None if no response
     """
-    # Create agent first to get session_id
+    # Create agent with session_id if resuming, otherwise a new session_id is generated
     agent = Agent(
         config,
         mode=AgentMode.AUTO_APPROVE if auto_approve else AgentMode.PLAN,
@@ -40,9 +42,10 @@ def run_programmatic(
         max_turns=max_turns,
         max_price=max_price,
         enable_streaming=False,
+        session_id=session_id,
     )
 
-    # Create formatter with session_id for VSCode output format
+    # Create formatter with agent's session_id for VSCode output format
     formatter = create_formatter(output_format, session_id=agent.session_id)
 
     # Now set the message observer

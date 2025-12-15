@@ -223,7 +223,9 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 print(json.dumps([]))
                 sys.exit(0)
 
-            sessions = InteractionLogger.list_sessions(config.session_logging, limit=20)
+            sessions = InteractionLogger.list_sessions(
+                config.session_logging, limit=20, workdir=config.effective_workdir
+            )
             result = [
                 {
                     "session_id": summary.get("session_id", ""),
@@ -314,6 +316,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
 
         loaded_messages = None
         session_info = None
+        full_session_id = None
 
         if args.continue_session or args.resume:
             if not config.session_logging.enabled:
@@ -349,12 +352,13 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 loaded_messages, metadata = InteractionLogger.load_session(
                     session_to_load
                 )
-                session_id = metadata.get("session_id", "unknown")[:8]
+                full_session_id = metadata.get("session_id")
+                session_id_display = (full_session_id or "unknown")[:8]
                 session_time = metadata.get("start_time", "unknown time")
 
                 session_info = ResumeSessionInfo(
                     type="continue" if args.continue_session else "resume",
-                    session_id=session_id,
+                    session_id=session_id_display,
                     session_time=session_time,
                 )
             except Exception as e:
@@ -384,6 +388,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                     output_format=output_format,
                     previous_messages=loaded_messages,
                     auto_approve=args.auto_approve,
+                    session_id=full_session_id,
                 )
                 if final_response:
                     print(final_response)
