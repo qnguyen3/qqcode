@@ -71,11 +71,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=str,
-        choices=["text", "json", "streaming"],
+        choices=["text", "json", "streaming", "vscode"],
         default="text",
         help="Output format for programmatic mode (-p): 'text' "
         "for human-readable (default), 'json' for all messages at end, "
-        "'streaming' for newline-delimited JSON per message.",
+        "'streaming' for newline-delimited JSON per message, "
+        "'vscode' for structured streaming events (VSCode extension).",
     )
     parser.add_argument(
         "--agent",
