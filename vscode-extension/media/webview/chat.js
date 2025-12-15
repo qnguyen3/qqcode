@@ -27,7 +27,11 @@
     let currentAssistantMessage = null;
     let currentThinkingElement = null;
     let isStreaming = false;
-    let toolCallMap = new Map(); // Track tool calls for result matching
+    let toolCallMap = new Map();
+
+    // Track text segments between tool calls
+    let segmentOffset = 0;
+    let lastAccumulatedLen = 0;
 
     // UI State
     let uiState = {
@@ -325,26 +329,38 @@
     }
 
     function updateCurrentAssistantMessage(content) {
+        lastAccumulatedLen = content.length;
+
         if (!currentAssistantMessage) {
-            addMessage('assistant', content);
-        } else {
-            currentAssistantMessage.innerHTML = formatMessageContent(content, 'assistant');
-            scrollToBottom();
+            currentAssistantMessage = document.createElement('div');
+            currentAssistantMessage.className = 'message assistant';
+            messagesDiv.appendChild(currentAssistantMessage);
         }
+
+        // Only show content from current segment (after last tool call)
+        const segmentContent = content.substring(segmentOffset);
+        if (segmentContent) {
+            currentAssistantMessage.innerHTML = formatMessageContent(segmentContent, 'assistant');
+        }
+        scrollToBottom();
     }
 
     function finalizeCurrentAssistantMessage() {
         if (currentAssistantMessage) {
             currentAssistantMessage.classList.remove('streaming');
-            messagesDiv.appendChild(currentAssistantMessage);
-            scrollToBottom();
-            currentAssistantMessage = null;
         }
+        currentAssistantMessage = null;
+        segmentOffset = 0;
+        lastAccumulatedLen = 0;
         setStreamingState(false);
         toolCallMap.clear();
     }
 
     function showToolCall(toolName, toolCallId, args) {
+        // End current text segment - next text will be in a new div
+        currentAssistantMessage = null;
+        segmentOffset = lastAccumulatedLen;
+
         const toolDiv = document.createElement('div');
         toolDiv.className = 'tool-call';
         toolDiv.id = `tool-${toolCallId}`;
@@ -495,6 +511,8 @@
         currentAssistantMessage = null;
         currentThinkingElement = null;
         toolCallMap.clear();
+        segmentOffset = 0;
+        lastAccumulatedLen = 0;
         setStreamingState(false);
     }
 
