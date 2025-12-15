@@ -87,6 +87,15 @@
     // =====================
 
     function setupEventListeners() {
+        // Global keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Shift+Tab to cycle through modes
+            if (e.shiftKey && e.key === 'Tab') {
+                e.preventDefault();
+                cycleModeSelector();
+            }
+        });
+
         // Model selection
         modelSelector.addEventListener('change', (e) => {
             const modelAlias = e.target.value;
@@ -103,12 +112,7 @@
         // Mode selection
         modeSelector.addEventListener('change', (e) => {
             const mode = e.target.value;
-            uiState.currentMode = mode;
-            saveState();
-            vscode.postMessage({
-                type: 'selectMode',
-                mode: mode
-            });
+            switchMode(mode);
         });
 
         // Session selection
@@ -742,6 +746,71 @@
                 handlePlanOptionSelect('revise', approvalDiv);
                 break;
         }
+    }
+
+    // =====================
+    // Mode Management
+    // =====================
+
+    function switchMode(mode) {
+        uiState.currentMode = mode;
+        modeSelector.value = mode;
+        saveState();
+        vscode.postMessage({
+            type: 'selectMode',
+            mode: mode
+        });
+        showModeNotification(mode);
+    }
+
+    function cycleModeSelector() {
+        const modes = ['plan', 'interactive', 'auto-approve'];
+        const currentIndex = modes.indexOf(uiState.currentMode || 'plan');
+        const nextIndex = (currentIndex + 1) % modes.length;
+        const nextMode = modes[nextIndex];
+        switchMode(nextMode);
+    }
+
+    function showModeNotification(mode) {
+        // Remove any existing notification
+        const existing = document.querySelector('.mode-notification');
+        if (existing) {
+            existing.remove();
+        }
+
+        // Create notification
+        const notification = document.createElement('div');
+        notification.className = 'mode-notification';
+
+        const modeLabels = {
+            'plan': 'Plan Mode',
+            'interactive': 'Interactive Mode',
+            'auto-approve': 'Auto-Approve Mode'
+        };
+
+        const modeIcons = {
+            'plan': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>',
+            'interactive': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+            'auto-approve': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'
+        };
+
+        notification.innerHTML = `
+            ${modeIcons[mode]}
+            <span>${modeLabels[mode]}</span>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            notification.classList.add('show');
+        });
+
+        // Remove after 2 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 2000);
     }
 
     // =====================

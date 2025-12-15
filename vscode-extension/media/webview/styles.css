@@ -976,6 +976,41 @@ body::before {
 }
 
 /* ================================
+   Mode Notification Toast
+   ================================ */
+.mode-notification {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: var(--qq-bg-elevated);
+    border: 1px solid var(--qq-border-emphasis);
+    border-radius: var(--qq-radius-xl);
+    padding: var(--qq-space-4) var(--qq-space-6);
+    display: flex;
+    align-items: center;
+    gap: var(--qq-space-3);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--qq-text-primary);
+    box-shadow: var(--qq-shadow-lg), 0 0 0 1px rgba(88, 166, 255, 0.1);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: all var(--qq-transition-base);
+}
+
+.mode-notification.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.mode-notification svg {
+    color: var(--qq-accent-primary);
+    flex-shrink: 0;
+}
+
+/* ================================
    Utility Classes
    ================================ */
 .visually-hidden {
