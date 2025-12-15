@@ -1,0 +1,58 @@
+{
+  "name": "qqcode-companion",
+  "displayName": "QQCode",
+  "description": "AI coding assistant powered by QQCode",
+  "version": "0.1.0",
+  "publisher": "qqcode",
+  "engines": {
+    "vscode": "^1.87.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "qqcode.askSelection",
+        "title": "QQCode: Ask About Selection"
+      }
+    ],
+    "configuration": {
+      "title": "QQCode",
+      "properties": {
+        "qqcode.commandPath": {
+          "type": "string",
+          "default": "qqcode",
+          "description": "Path to QQCode CLI executable"
+        },
+        "qqcode.autoApprove": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically approve tool executions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "bundle": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "vsce package",
+    "vscode:prepublish": "npm run bundle"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.2",
+    "@types/vscode": "^1.107.0",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.27.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.5"
+  }
+}
