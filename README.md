@@ -53,10 +53,11 @@ pip install qqcode
 
 - **Interactive Chat**: A conversational AI agent that understands your requests and breaks down complex tasks.
 - **Powerful Toolset**: A suite of tools for file manipulation, code searching, version control, and command execution, right from the chat prompt.
-  - Read, write, and edit files (`read_file`, `write_file`, `edit`).
+  - Read, write, and edit files.
   - Execute shell commands in a stateful terminal (`bash`).
   - Recursively search code with `grep` (with `ripgrep` support).
   - Manage a `todo` list to track the agent's work.
+  - Agent Skills are loaded in on-demand to provide more context.
 - **Project-Aware Context**: QQcode automatically scans your project's file structure and Git status to provide relevant context to the agent, improving its understanding of your codebase.
 - **Advanced CLI Experience**: Built with modern libraries for a smooth and efficient workflow.
   - Autocompletion for slash commands (`/`) and file paths (`@`).
@@ -131,9 +132,35 @@ by default it will use `auto-approve` mode.
 
 Use slash commands for meta-actions and configuration changes during a session.
 
+## Skills
+
+QQcode supports Skills, which work exactly like Claude Skills. Skills allow you to extend QQcode's capabilities with custom workflows, templates, and domain-specific expertise.
+
+To create a skill, place your skill directory under `.qqcode/skills/[your-skill]` for it to be automatically registered and available to the agent. Each skill should contain a `SKILL.md` file that defines the skill's name, description, and instructions.
+
+Example skill structure:
+```
+.qqcode/
+  skills/
+    my-skill/
+      SKILL.md
+      scripts/
+      templates/
+```
+
+Skills can provide specialized workflows, context, and best practices for specific domains like frontend development, data analysis, or testing.
+
 ## Configuration
 
 QQcode is configured via a `config.toml` file. It looks for this file first in `./.qqcode/config.toml` and then falls back to `~/.qqcode/config.toml`.
+
+### Supported Providers
+
+QQcode supports multiple AI providers:
+
+- **Anthropic Claude Max subscription**: Access Claude models with your Claude.ai subscription
+- **OpenRouter**: Access multiple AI models through a single API
+- **Mistral AI**: Use Mistral's AI models directly
 
 ### API Key Configuration
 
@@ -144,13 +171,13 @@ QQcode supports multiple ways to configure your API keys:
 2. **Environment Variables**: Set your API key as an environment variable:
 
    ```bash
-   export MISTRAL_API_KEY="your_mistral_api_key"
+   export OPENROUTER_API_KEY="your_openrouter_api_key"
    ```
 
 3. **`.env` File**: Create a `.env` file in `~/.qqcode/` and add your API keys:
 
    ```bash
-   MISTRAL_API_KEY=your_mistral_api_key
+   OPENROUTER_API_KEY=your_openrouter_api_key
    ```
 
    QQcode automatically loads API keys from `~/.qqcode/.env` on startup. Environment variables take precedence over the `.env` file if both are set.
