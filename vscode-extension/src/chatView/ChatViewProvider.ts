@@ -9,6 +9,9 @@ import {
     WebviewToExtensionMessage,
     ExecutionMode
 } from './protocol/messages';
+import { FileIndexer } from '../fileIndexer/FileIndexer';
+import { PathCompleter } from '../fileIndexer/PathCompleter';
+import { processMessage } from './messageProcessor';
 
 /**
  * Chat state management
@@ -61,6 +64,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private webviewReady = false;
     private pendingMessages: ExtensionToWebviewMessage[] = [];
 
+    // File completion
+    private fileIndexer: FileIndexer;
+    private pathCompleter: PathCompleter;
+
     constructor(
         private readonly extensionUri: vscode.Uri,
         backend: QQCodeBackend,
@@ -70,6 +77,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.backend = backend;
         this.extensionContext = extensionContext;
         this.statusBar = statusBar || null;
+        this.fileIndexer = new FileIndexer();
+        this.pathCompleter = new PathCompleter(this.fileIndexer);
         this.restoreState();
     }
 
@@ -196,7 +205,83 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 this.handlePlanApprovalResponse(message.approved, message.mode, message.feedback);
                 this.state.pendingPlanApproval = null;
                 break;
+
+            case 'requestFileCompletions':
+                await this.handleFileCompletionRequest(
+                    message.text,
+                    message.cursorPosition,
+                    message.requestId
+                );
+                break;
+
+            case 'openFile':
+                await this.handleOpenFile(message.path);
+                break;
         }
+    }
+
+    // =====================
+    // File Completion
+    // =====================
+
+    private async handleFileCompletionRequest(
+        text: string,
+        cursorPosition: number,
+        requestId: string
+    ): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot) {
+            this.sendToWebview({
+                type: 'fileCompletionSuggestions',
+                suggestions: [],
+                requestId
+            });
+            return;
+        }
+
+        try {
+            const suggestions = await this.pathCompleter.getCompletions(
+                text,
+                cursorPosition,
+                workspaceRoot
+            );
+
+            this.sendToWebview({
+                type: 'fileCompletionSuggestions',
+                suggestions,
+                requestId
+            });
+        } catch (error) {
+            console.error('Failed to get file completions:', error);
+            this.sendToWebview({
+                type: 'fileCompletionSuggestions',
+                suggestions: [],
+                requestId
+            });
+        }
+    }
+
+    private async handleOpenFile(filePath: string): Promise<void> {
+        const workspaceRoot = this.getWorkspaceRoot();
+        if (!workspaceRoot) {
+            return;
+        }
+
+        try {
+            const fileUri = vscode.Uri.joinPath(workspaceRoot, filePath);
+            const document = await vscode.workspace.openTextDocument(fileUri);
+            await vscode.window.showTextDocument(document);
+        } catch (error) {
+            console.error('Failed to open file:', error);
+        }
+    }
+
+    private getWorkspaceRoot(): vscode.Uri | null {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return null;
+        }
+        return workspaceFolders[0].uri;
     }
 
     private async initializeWebview(): Promise<void> {
@@ -252,20 +337,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.state.accumulatedThinking = '';
         this.statusBar?.setThinking();
 
-        // Add user message to UI
+        // Process @ mentions and embed file contents
+        const workspaceRoot = this.getWorkspaceRoot();
+        let processedText = text;
+        let displayText = text;
+
+        if (workspaceRoot) {
+            try {
+                const processed = await processMessage(text, workspaceRoot);
+                processedText = processed.promptText;
+                displayText = processed.displayText;
+
+                // Log mentions for debugging
+                if (processed.mentions.length > 0) {
+                    console.log(`[QQCode] Processed ${processed.mentions.length} file mention(s)`);
+                }
+            } catch (error) {
+                console.error('Failed to process message:', error);
+                // Fall back to original text
+            }
+        }
+
+        // Add user message to UI (show display text, not processed text)
         this.sendToWebview({
             type: 'addMessage',
             role: 'user',
-            content: text
+            content: displayText
         });
-        this.state.messageHistory.push({ role: 'user', content: text });
+        this.state.messageHistory.push({ role: 'user', content: displayText });
 
         const requestedSessionId = this.state.currentSessionId;
         let assistantMessage = '';
 
         try {
+            // Send processed text (with embedded file contents) to backend
             for await (const chunk of this.backend.streamPrompt(
-                text,
+                processedText,
                 this.state.currentMode,
                 this.state.currentSessionId || undefined,
                 this.state.currentModel || undefined

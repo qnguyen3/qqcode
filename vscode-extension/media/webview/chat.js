@@ -29,6 +29,15 @@
     let isStreaming = false;
     let toolCallMap = new Map();
 
+    // File completion state
+    let completionState = {
+        suggestions: [],
+        selectedIndex: 0,
+        visible: false,
+        requestId: 0,
+        debounceTimer: null
+    };
+
     // UI State
     let uiState = {
         modelControlVisible: false,
@@ -141,14 +150,53 @@
 
         // Keyboard shortcuts
         userInput.addEventListener('keydown', (e) => {
+            // Handle completion navigation first
+            if (completionState.visible) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    moveCompletionSelection(1);
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    moveCompletionSelection(-1);
+                    return;
+                }
+                if (e.key === 'Tab' || e.key === 'Enter') {
+                    if (completionState.suggestions.length > 0) {
+                        e.preventDefault();
+                        applyCompletion(completionState.suggestions[completionState.selectedIndex]);
+                        return;
+                    }
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    hideCompletionPopup();
+                    return;
+                }
+            }
+
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
             }
         });
 
-        // Auto-resize textarea
-        userInput.addEventListener('input', autoResizeInput);
+        // Auto-resize textarea and handle @ completions
+        userInput.addEventListener('input', (e) => {
+            autoResizeInput();
+            handleInputChange();
+        });
+
+        // Handle blur to hide completions
+        userInput.addEventListener('blur', () => {
+            // Delay to allow click on completion item
+            setTimeout(() => {
+                if (!document.activeElement?.closest('.completion-popup')) {
+                    hideCompletionPopup();
+                }
+            }, 150);
+        });
 
         // Handle messages from extension
         window.addEventListener('message', handleExtensionMessage);
@@ -272,6 +320,9 @@
             case 'setLoading':
                 setStreamingState(message.loading);
                 break;
+            case 'fileCompletionSuggestions':
+                handleFileCompletionSuggestions(message.suggestions, message.requestId);
+                break;
         }
     }
 
@@ -305,7 +356,7 @@
         // Basic markdown-like formatting
         let formatted = escapeHtml(content);
 
-        // Code blocks
+        // Code blocks (must be before inline code)
         formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
             return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
         });
@@ -316,11 +367,60 @@
         // Bold
         formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
+        // Italic
+        formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+        // File mentions (for user messages)
+        if (role === 'user') {
+            formatted = formatted.replace(/@([a-zA-Z0-9._/\\()\[\]{}-]+)/g, (match, path) => {
+                return `<span class="file-mention" data-path="${escapeHtml(path)}" onclick="openFile('${escapeHtml(path)}'))">${escapeHtml(match)}</span>`;
+            });
+        }
+
+        // Headings (must be done line by line before converting \n to <br>)
+        formatted = formatted.split('\n').map(line => {
+            // H1
+            if (line.match(/^# (.+)$/)) {
+                return line.replace(/^# (.+)$/, '<h1>$1</h1>');
+            }
+            // H2
+            if (line.match(/^## (.+)$/)) {
+                return line.replace(/^## (.+)$/, '<h2>$1</h2>');
+            }
+            // H3
+            if (line.match(/^### (.+)$/)) {
+                return line.replace(/^### (.+)$/, '<h3>$1</h3>');
+            }
+            // H4
+            if (line.match(/^#### (.+)$/)) {
+                return line.replace(/^#### (.+)$/, '<h4>$1</h4>');
+            }
+            // Unordered list
+            if (line.match(/^[\-\*] (.+)$/)) {
+                return line.replace(/^[\-\*] (.+)$/, '<li>$1</li>');
+            }
+            // Ordered list
+            if (line.match(/^\d+\. (.+)$/)) {
+                return line.replace(/^\d+\. (.+)$/, '<li>$1</li>');
+            }
+            return line;
+        }).join('\n');
+
         // Line breaks
         formatted = formatted.replace(/\n/g, '<br>');
 
         return formatted;
     }
+
+    // Global function for opening files from mentions
+    window.openFile = function(path) {
+        // Remove trailing slash for directories
+        const cleanPath = path.replace(/\/$/, '');
+        vscode.postMessage({
+            type: 'openFile',
+            path: cleanPath
+        });
+    };
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -746,6 +846,195 @@
                 handlePlanOptionSelect('revise', approvalDiv);
                 break;
         }
+    }
+
+    // =====================
+    // File Completion
+    // =====================
+
+    function handleInputChange() {
+        const text = userInput.value;
+        const cursorPos = userInput.selectionStart;
+
+        // Check if we should show completions
+        if (shouldShowCompletions(text, cursorPos)) {
+            requestCompletions(text, cursorPos);
+        } else {
+            hideCompletionPopup();
+        }
+    }
+
+    function shouldShowCompletions(text, cursorPos) {
+        if (cursorPos === 0) return false;
+
+        const beforeCursor = text.substring(0, cursorPos);
+        const atIndex = beforeCursor.lastIndexOf('@');
+
+        if (atIndex === -1) return false;
+
+        // Check if @ is at start or preceded by whitespace
+        if (atIndex > 0 && !/\s/.test(beforeCursor[atIndex - 1])) {
+            return false;
+        }
+
+        // Check if there's a space after @
+        const fragment = beforeCursor.substring(atIndex + 1);
+        return !fragment.includes(' ');
+    }
+
+    function requestCompletions(text, cursorPos) {
+        // Debounce requests
+        if (completionState.debounceTimer) {
+            clearTimeout(completionState.debounceTimer);
+        }
+
+        completionState.debounceTimer = setTimeout(() => {
+            completionState.requestId++;
+            vscode.postMessage({
+                type: 'requestFileCompletions',
+                text: text,
+                cursorPosition: cursorPos,
+                requestId: String(completionState.requestId)
+            });
+        }, 50); // 50ms debounce
+    }
+
+    function handleFileCompletionSuggestions(suggestions, requestId) {
+        // Ignore stale responses
+        if (parseInt(requestId) !== completionState.requestId) {
+            return;
+        }
+
+        completionState.suggestions = suggestions;
+        completionState.selectedIndex = 0;
+
+        if (suggestions.length > 0) {
+            showCompletionPopup();
+        } else {
+            hideCompletionPopup();
+        }
+    }
+
+    function showCompletionPopup() {
+        let popup = document.getElementById('completion-popup');
+
+        if (!popup) {
+            popup = document.createElement('div');
+            popup.id = 'completion-popup';
+            popup.className = 'completion-popup';
+            document.getElementById('input-container').appendChild(popup);
+        }
+
+        const items = completionState.suggestions.map((suggestion, index) => {
+            const isSelected = index === completionState.selectedIndex;
+            const icon = suggestion.isDirectory ? getFolderIcon() : getFileIcon(suggestion.path);
+            return `
+                <div class="completion-item ${isSelected ? 'selected' : ''}" data-index="${index}">
+                    ${icon}
+                    <span class="completion-label">${escapeHtml(suggestion.label)}</span>
+                </div>
+            `;
+        }).join('');
+
+        const hint = `
+            <div class="completion-hint">
+                <kbd>↑</kbd><kbd>↓</kbd> navigate
+                <kbd>Tab</kbd> or <kbd>↵</kbd> select
+                <kbd>Esc</kbd> dismiss
+            </div>
+        `;
+
+        popup.innerHTML = items + hint;
+
+        // Add click handlers
+        popup.querySelectorAll('.completion-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const index = parseInt(item.dataset.index);
+                applyCompletion(completionState.suggestions[index]);
+            });
+            item.addEventListener('mouseenter', () => {
+                completionState.selectedIndex = parseInt(item.dataset.index);
+                updateCompletionSelection();
+            });
+        });
+
+        popup.style.display = 'block';
+        completionState.visible = true;
+    }
+
+    function hideCompletionPopup() {
+        const popup = document.getElementById('completion-popup');
+        if (popup) {
+            popup.style.display = 'none';
+        }
+        completionState.visible = false;
+        completionState.suggestions = [];
+        completionState.selectedIndex = 0;
+    }
+
+    function moveCompletionSelection(delta) {
+        if (completionState.suggestions.length === 0) return;
+
+        completionState.selectedIndex = (completionState.selectedIndex + delta + completionState.suggestions.length) % completionState.suggestions.length;
+        updateCompletionSelection();
+    }
+
+    function updateCompletionSelection() {
+        const popup = document.getElementById('completion-popup');
+        if (!popup) return;
+
+        popup.querySelectorAll('.completion-item').forEach((item, index) => {
+            item.classList.toggle('selected', index === completionState.selectedIndex);
+        });
+
+        // Scroll selected item into view
+        const selectedItem = popup.querySelector('.completion-item.selected');
+        if (selectedItem) {
+            selectedItem.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function applyCompletion(suggestion) {
+        const text = userInput.value;
+        const cursorPos = userInput.selectionStart;
+        const beforeCursor = text.substring(0, cursorPos);
+        const afterCursor = text.substring(cursorPos);
+
+        // Find the @ position
+        const atIndex = beforeCursor.lastIndexOf('@');
+        if (atIndex === -1) {
+            hideCompletionPopup();
+            return;
+        }
+
+        // Build new text
+        const prefix = text.substring(0, atIndex);
+        let completion = suggestion.label;
+
+        // Add space after completion unless it's a directory
+        if (!suggestion.isDirectory) {
+            completion += ' ';
+        }
+
+        const newText = prefix + completion + afterCursor;
+        const newCursorPos = prefix.length + completion.length;
+
+        userInput.value = newText;
+        userInput.setSelectionRange(newCursorPos, newCursorPos);
+        userInput.focus();
+
+        hideCompletionPopup();
+        autoResizeInput();
+    }
+
+    function getFileIcon(path) {
+        // Return empty icon for files
+        return `<span class="completion-icon"></span>`;
+    }
+
+    function getFolderIcon() {
+        // Return empty icon for folders
+        return `<span class="completion-icon"></span>`;
     }
 
     // =====================

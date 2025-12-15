@@ -159,7 +159,7 @@ body::before {
     height: 28px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     background: var(--qq-bg-surface);
     border: 1px solid var(--qq-border-default);
     border-radius: var(--qq-radius-md);
@@ -358,6 +358,54 @@ body::before {
 .message.user pre {
     background: rgba(13, 17, 23, 0.6);
     border-color: rgba(88, 166, 255, 0.2);
+}
+
+/* Message headings */
+.message h1,
+.message h2,
+.message h3,
+.message h4 {
+    font-weight: 600;
+    line-height: 1.3;
+    margin: var(--qq-space-3) 0 var(--qq-space-2);
+    color: var(--qq-text-primary);
+}
+
+.message h1 {
+    font-size: 18px;
+    border-bottom: 1px solid var(--qq-border-subtle);
+    padding-bottom: var(--qq-space-2);
+}
+
+.message h2 {
+    font-size: 16px;
+    border-bottom: 1px solid var(--qq-border-subtle);
+    padding-bottom: var(--qq-space-1);
+}
+
+.message h3 {
+    font-size: 14px;
+}
+
+.message h4 {
+    font-size: 13px;
+    color: var(--qq-text-secondary);
+}
+
+/* Message lists */
+.message li {
+    margin-left: var(--qq-space-4);
+    margin-bottom: var(--qq-space-1);
+    line-height: 1.6;
+}
+
+.message em {
+    font-style: italic;
+    color: var(--qq-text-secondary);
+}
+
+.message strong {
+    font-weight: 600;
 }
 
 /* ================================
@@ -855,7 +903,7 @@ body::before {
     height: 42px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     background: var(--qq-accent-primary-dim);
     color: white;
     border: none;
@@ -959,19 +1007,22 @@ body::before {
 }
 
 .keyboard-hint {
-    margin-left: auto;
     font-size: 10px;
     color: var(--qq-text-muted);
     display: flex;
     align-items: center;
-    gap: var(--qq-space-1);
+    justify-content: flex-start;
+    gap: var(--qq-space-2);
+    padding-top: var(--qq-space-2);
+    border-top: 1px solid var(--qq-border-subtle);
+    margin-top: var(--qq-space-2);
 }
 
 .keyboard-hint kbd {
     background: var(--qq-bg-surface);
     border: 1px solid var(--qq-border-default);
     border-radius: 3px;
-    padding: 1px 4px;
+    padding: 2px 5px;
     font-family: var(--qq-font-mono);
     font-size: 9px;
     font-weight: 600;
@@ -1058,4 +1109,120 @@ select,
 button,
 .message {
     transition-property: background-color, border-color, box-shadow, transform;
+}
+
+/* ================================
+   File Completion Popup
+   ================================ */
+.completion-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--qq-bg-elevated);
+    border: 1px solid var(--qq-border-default);
+    border-radius: var(--qq-radius-lg);
+    box-shadow: var(--qq-shadow-lg);
+    margin-bottom: var(--qq-space-2);
+    z-index: 1000;
+    display: none;
+}
+
+.completion-popup::-webkit-scrollbar {
+    width: 6px;
+}
+
+.completion-popup::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.completion-popup::-webkit-scrollbar-thumb {
+    background: var(--qq-border-emphasis);
+    border-radius: 3px;
+}
+
+.completion-item {
+    display: flex;
+    align-items: center;
+    gap: var(--qq-space-2);
+    padding: var(--qq-space-2) var(--qq-space-3);
+    cursor: pointer;
+    transition: background var(--qq-transition-fast);
+}
+
+.completion-item:hover,
+.completion-item.selected {
+    background: var(--qq-bg-hover);
+}
+
+.completion-item.selected {
+    background: var(--qq-accent-primary-glow);
+    border-left: 2px solid var(--qq-accent-primary);
+}
+
+.completion-icon {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.completion-label {
+    font-family: var(--qq-font-mono);
+    font-size: 12px;
+    color: var(--qq-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.completion-item.selected .completion-label {
+    color: var(--qq-accent-primary);
+}
+
+/* File mention chips in messages */
+.file-mention {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--qq-space-1);
+    padding: 2px var(--qq-space-2);
+    background: var(--qq-accent-primary-glow);
+    border: 1px solid var(--qq-accent-primary-dim);
+    border-radius: var(--qq-radius-sm);
+    font-family: var(--qq-font-mono);
+    font-size: 11px;
+    color: var(--qq-accent-primary);
+    cursor: pointer;
+    transition: all var(--qq-transition-fast);
+}
+
+.file-mention:hover {
+    background: var(--qq-accent-primary-dim);
+    color: var(--qq-text-primary);
+}
+
+.file-mention-icon {
+    font-size: 12px;
+}
+
+/* Hint text for @ completion */
+.completion-hint {
+    padding: var(--qq-space-2) var(--qq-space-3);
+    font-size: 11px;
+    color: var(--qq-text-muted);
+    border-top: 1px solid var(--qq-border-subtle);
+    display: flex;
+    align-items: center;
+    gap: var(--qq-space-2);
+}
+
+.completion-hint kbd {
+    background: var(--qq-bg-surface);
+    border: 1px solid var(--qq-border-default);
+    border-radius: var(--qq-radius-sm);
+    padding: 1px 4px;
+    font-family: var(--qq-font-mono);
+    font-size: 10px;
 }

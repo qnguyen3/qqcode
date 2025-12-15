@@ -119,6 +119,18 @@ export type PlanApprovalCompletePayload = {
     feedback?: string;
 };
 
+export type FileCompletionSuggestion = {
+    label: string;
+    path: string;
+    isDirectory: boolean;
+};
+
+export type FileCompletionSuggestionsPayload = {
+    type: 'fileCompletionSuggestions';
+    suggestions: FileCompletionSuggestion[];
+    requestId: string;
+};
+
 /**
  * All possible messages sent from extension to webview
  */
@@ -142,7 +154,8 @@ export type ExtensionToWebviewMessage =
     | SetLoadingPayload
     | UpdateCurrentModePayload
     | PlanApprovalRequiredPayload
-    | PlanApprovalCompletePayload;
+    | PlanApprovalCompletePayload
+    | FileCompletionSuggestionsPayload;
 
 // =====================
 // Webview → Extension Messages
@@ -197,6 +210,18 @@ export type PlanApprovalResponseMessage = {
     feedback?: string;
 };
 
+export type RequestFileCompletionsMessage = {
+    type: 'requestFileCompletions';
+    text: string;
+    cursorPosition: number;
+    requestId: string;
+};
+
+export type OpenFileMessage = {
+    type: 'openFile';
+    path: string;
+};
+
 /**
  * All possible messages sent from webview to extension
  */
@@ -210,7 +235,9 @@ export type WebviewToExtensionMessage =
     | SelectModelMessage
     | SelectModeMessage
     | ApproveToolCallMessage
-    | PlanApprovalResponseMessage;
+    | PlanApprovalResponseMessage
+    | RequestFileCompletionsMessage
+    | OpenFileMessage;
 
 // =====================
 // Type Guards
