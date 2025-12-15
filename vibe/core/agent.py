@@ -121,8 +121,16 @@ class Agent:
         self.enable_streaming = enable_streaming
         self._setup_middleware(max_turns, max_price)
 
+        # Support both mode and legacy auto_approve parameter - set mode before system prompt
+        if mode is not None:
+            self._mode = mode
+        elif auto_approve:
+            self._mode = AgentMode.AUTO_APPROVE
+        else:
+            self._mode = AgentMode.INTERACTIVE
+
         system_prompt = get_universal_system_prompt(
-            self.tool_manager, config, skill_manager=self.skill_manager
+            self.tool_manager, config, skill_manager=self.skill_manager, mode=self._mode.value
         )
 
         self.messages = [LLMMessage(role=Role.system, content=system_prompt)]
@@ -138,14 +146,6 @@ class Agent:
             self.stats.output_price_per_million = active_model.output_price
         except ValueError:
             pass
-
-        # Support both mode and legacy auto_approve parameter
-        if mode is not None:
-            self._mode = mode
-        elif auto_approve:
-            self._mode = AgentMode.AUTO_APPROVE
-        else:
-            self._mode = AgentMode.INTERACTIVE
 
         self.approval_callback: ApprovalCallback | None = None
         self.plan_approval_callback: (
@@ -170,8 +170,10 @@ class Agent:
 
     @mode.setter
     def mode(self, value: AgentMode) -> None:
-        """Set the agent mode."""
-        self._mode = value
+        """Set the agent mode and regenerate system prompt if mode changed."""
+        if self._mode != value:
+            self._mode = value
+            self._regenerate_system_prompt_for_mode()
 
     @property
     def auto_approve(self) -> bool:
@@ -282,17 +284,8 @@ class Agent:
             messages=self.messages, stats=self.stats, config=self.config
         )
 
-    def _get_plan_mode_prefix(self) -> str:
-        """Get the plan mode instructions prefix for user messages."""
-        if self._mode != AgentMode.PLAN:
-            return ""
-        return UtilityPrompt.PLAN_MODE.read() + "\n\n---\n\n"
-
     async def _conversation_loop(self, user_msg: str) -> AsyncGenerator[BaseEvent]:
-        # Prepend plan mode instructions if in plan mode
-        plan_prefix = self._get_plan_mode_prefix()
-        full_msg = f"{plan_prefix}{user_msg}" if plan_prefix else user_msg
-        self.messages.append(LLMMessage(role=Role.user, content=full_msg))
+        self.messages.append(LLMMessage(role=Role.user, content=user_msg))
         self.stats.steps += 1
 
         try:
@@ -647,7 +640,17 @@ class Agent:
                     and result_model.mode_change == "plan"
                 ):
                     self._mode = AgentMode.PLAN
+                    self._regenerate_system_prompt_for_mode()
                     yield ModeChangedEvent(new_mode=AgentMode.PLAN)
+
+                # Check for exit_plan_mode signal
+                if hasattr(result_model, "exit_plan_mode") and result_model.exit_plan_mode:
+                    # Exit plan mode back to interactive
+                    old_mode = self._mode
+                    self._mode = AgentMode.INTERACTIVE
+                    if old_mode != self._mode:
+                        self._regenerate_system_prompt_for_mode()
+                        yield ModeChangedEvent(new_mode=AgentMode.INTERACTIVE)
 
             except asyncio.CancelledError:
                 cancel = str(
@@ -1098,6 +1101,16 @@ class Agent:
             )
             raise
 
+    def _regenerate_system_prompt_for_mode(self) -> None:
+        """Regenerate the system prompt when mode changes."""
+        new_system_prompt = get_universal_system_prompt(
+            self.tool_manager, self.config, skill_manager=self.skill_manager, mode=self._mode.value
+        )
+        if len(self.messages) > 0:
+            self.messages[0] = LLMMessage(role=Role.system, content=new_system_prompt)
+        else:
+            self.messages.insert(0, LLMMessage(role=Role.system, content=new_system_prompt))
+
     async def reload_with_initial_messages(
         self,
         config: VibeConfig | None = None,
@@ -1120,7 +1133,7 @@ class Agent:
         self.tool_manager = ToolManager(self.config, skill_manager=self.skill_manager)
 
         new_system_prompt = get_universal_system_prompt(
-            self.tool_manager, self.config, skill_manager=self.skill_manager
+            self.tool_manager, self.config, skill_manager=self.skill_manager, mode=self._mode.value
         )
         self.messages = [LLMMessage(role=Role.system, content=new_system_prompt)]
         did_system_prompt_change = old_system_prompt != new_system_prompt

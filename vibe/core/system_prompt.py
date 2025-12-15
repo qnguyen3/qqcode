@@ -379,6 +379,7 @@ def get_universal_system_prompt(
     tool_manager: ToolManager,
     config: VibeConfig,
     skill_manager: SkillManager | None = None,
+    mode: str | None = None,
 ) -> str:
     sections = [config.system_prompt]
 
@@ -387,6 +388,10 @@ def get_universal_system_prompt(
 
     if config.include_model_info:
         sections.append(f"Your model name is: `{config.active_model}`")
+
+    # Add plan mode instructions if in plan mode
+    if mode == "plan":
+        sections.append(UtilityPrompt.PLAN_MODE.read())
 
     if config.include_prompt_detail:
         sections.append(_get_os_system_prompt())
