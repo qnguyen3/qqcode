@@ -1,7 +1,7 @@
 id = "qqcode"
 name = "QQcode"
 description = "Open-source CLI coding assistant"
-version = "1.0.0"
+version = "1.0.1"
 schema_version = 1
 authors = ["QQcode Team"]
 repository = "https://github.com/qnguyen3/qqcode"
@@ -11,25 +11,25 @@ name = "QQcode"
 icon = "./icons/qqcode.svg"
 
 [agent_servers.qqcode.targets.darwin-aarch64]
-archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.0/qqcode-acp-darwin-aarch64-1.0.0.zip"
+archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.1/qqcode-acp-darwin-aarch64-1.0.1.zip"
 cmd = "./qqcode-acp"
 
 [agent_servers.qqcode.targets.darwin-x86_64]
-archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.0/qqcode-acp-darwin-x86_64-1.0.0.zip"
+archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.1/qqcode-acp-darwin-x86_64-1.0.1.zip"
 cmd = "./qqcode-acp"
 
 # [agent_servers.qqcode.targets.linux-aarch64]
-# archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.0/qqcode-acp-linux-aarch64-1.0.0.zip"
+# archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.1/qqcode-acp-linux-aarch64-1.0.1.zip"
 # cmd = "./qqcode-acp"
 
 [agent_servers.qqcode.targets.linux-x86_64]
-archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.0/qqcode-acp-linux-x86_64-1.0.0.zip"
+archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.1/qqcode-acp-linux-x86_64-1.0.1.zip"
 cmd = "./qqcode-acp"
 
 # [agent_servers.qqcode.targets.windows-aarch64]
-# archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.0/qqcode-acp-windows-aarch64-1.0.0.zip"
+# archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.1/qqcode-acp-windows-aarch64-1.0.1.zip"
 # cmd = "./qqcode-acp.exe"
 
 [agent_servers.qqcode.targets.windows-x86_64]
-archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.0/qqcode-acp-windows-x86_64-1.0.0.zip"
+archive = "https://github.com/qnguyen3/qqcode/releases/download/v1.0.1/qqcode-acp-windows-x86_64-1.0.1.zip"
 cmd = "./qqcode-acp.exe"
