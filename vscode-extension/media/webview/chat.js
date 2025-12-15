@@ -708,7 +708,7 @@
             <div class="plan-approval-header">Plan Ready for Review</div>
             <div class="plan-content-container">
                 <div class="plan-title">Implementation Plan</div>
-                <div class="plan-content">${escapeHtml(plan)}</div>
+                <div class="plan-content">${formatMessageContent(plan, 'assistant')}</div>
             </div>
             <div class="plan-options-container">
                 <div class="plan-option">
