@@ -393,14 +393,20 @@ export class QQCodeBackend {
                     args: event.args || {}
                 };
 
-            case 'tool.result':
+            case 'tool.result': {
+                let result = event.is_error ? (event.error || '') : (event.result || '');
+                // Strip <tool_error> tags from error messages
+                if (event.is_error && typeof result === 'string') {
+                    result = result.replace(/<\/?tool_error>/g, '').trim();
+                }
                 return {
                     kind: 'tool_result',
                     toolCallId: event.tool_call_id!,
                     toolName: event.tool_name!,
-                    result: event.result || '',
+                    result,
                     isError: event.is_error || false
                 };
+            }
 
             case 'tool.approval_required':
                 return {
