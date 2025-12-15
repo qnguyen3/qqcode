@@ -128,9 +128,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         // Restore conversation state if we have a current session
         if (this.currentSessionId && this.messageHistory.length > 0) {
-            // Restore messages to UI
+            // Restore messages to UI (mark as history to avoid setting streaming state)
             for (const msg of this.messageHistory) {
-                this.addMessageToUI(msg.role, msg.content);
+                this.addMessageToUI(msg.role, msg.content, true);
             }
 
             // Update session badge
@@ -222,11 +222,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private addMessageToUI(role: string, content: string) {
+    private addMessageToUI(role: string, content: string, isHistory: boolean = false) {
         this.view?.webview.postMessage({
             type: 'addMessage',
             role,
-            content
+            content,
+            isHistory
         });
     }
 
@@ -307,11 +308,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             try {
                 const sessionData = await this.backend.getSession(sessionId);
                 if (sessionData) {
-                    // Populate UI with history
+                    // Populate UI with history (mark as history to avoid setting streaming state)
                     for (const msg of sessionData.messages) {
                         if (msg.role === 'user' || msg.role === 'assistant') {
                             if (msg.content) {
-                                this.addMessageToUI(msg.role, msg.content);
+                                this.addMessageToUI(msg.role, msg.content, true);
                                 this.messageHistory.push({ role: msg.role, content: msg.content });
                             }
                         }
@@ -773,7 +774,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
                 switch (message.type) {
                     case 'addMessage':
-                        addMessage(message.role, message.content);
+                        addMessage(message.role, message.content, message.isHistory || false);
                         break;
                     case 'updateAssistantMessage':
                         updateCurrentAssistantMessage(message.content);
@@ -831,14 +832,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 }
             });
 
-            function addMessage(role, content) {
+            function addMessage(role, content, isHistory = false) {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'message ' + role;
                 msgDiv.textContent = content;
                 messagesDiv.appendChild(msgDiv);
                 scrollToBottom();
 
-                if (role === 'assistant') {
+                // Only set up streaming state for non-history assistant messages
+                if (role === 'assistant' && !isHistory) {
                     currentAssistantMessage = msgDiv;
                     msgDiv.classList.add('streaming');
                 }
@@ -856,6 +858,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             function finalizeCurrentAssistantMessage() {
                 if (currentAssistantMessage) {
                     currentAssistantMessage.classList.remove('streaming');
+                    // Move the assistant message to the end so it appears after all tool calls
+                    messagesDiv.appendChild(currentAssistantMessage);
+                    scrollToBottom();
                     currentAssistantMessage = null;
                 }
             }
