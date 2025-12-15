@@ -51,7 +51,7 @@ async def _login_anthropic_async() -> None:
     try:
         save_oauth_token("anthropic", token)
         rprint("\n[bold green]Successfully logged in to Anthropic![/bold green]")
-        rprint("[dim]You can now use Claude models. Run 'vibe' and use /models to select a model.[/dim]\n")
+        rprint("[dim]You can now use Claude models. Run 'qqcode' and use /models to select a model.[/dim]\n")
     except Exception as e:
         rprint(f"[red]Failed to save token: {e}[/red]")
 
