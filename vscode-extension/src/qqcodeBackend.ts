@@ -77,11 +77,20 @@ export class QQCodeBackend {
         this.outputChannel.appendLine(`[QQCode] Spawning: ${command} ${args.join(' ')}`);
         this.outputChannel.appendLine(`[QQCode] Working directory: ${cwd}`);
 
-        this.currentProcess = spawn(command, args, spawnOptions);
+        try {
+            this.currentProcess = spawn(command, args, spawnOptions);
+            this.outputChannel.appendLine(`[QQCode] Process spawned with PID: ${this.currentProcess.pid}`);
+        } catch (spawnError) {
+            this.outputChannel.appendLine(`[QQCode] Spawn error: ${spawnError}`);
+            throw spawnError;
+        }
 
         if (!this.currentProcess.stdout) {
-            throw new Error('Failed to spawn QQCode process');
+            this.outputChannel.appendLine(`[QQCode] ERROR: No stdout stream available`);
+            throw new Error('Failed to spawn QQCode process - no stdout');
         }
+
+        this.outputChannel.appendLine(`[QQCode] stdout stream available, setting up handlers...`);
 
         // Set up stderr capture IMMEDIATELY
         let stderrBuffer = '';
@@ -91,6 +100,7 @@ export class QQCodeBackend {
                 stderrBuffer += text;
                 this.outputChannel.appendLine(`[QQCode stderr] ${text}`);
             });
+            this.outputChannel.appendLine(`[QQCode] stderr handler attached`);
         }
 
         // Track process state
@@ -131,9 +141,12 @@ export class QQCodeBackend {
         // Track if we've received any events
         let receivedEvents = false;
 
+        this.outputChannel.appendLine(`[QQCode] Starting to read stdout lines...`);
+
         try {
             // Process lines as they come
             for await (const line of rl) {
+                this.outputChannel.appendLine(`[QQCode] Received line: ${line.substring(0, 100)}...`);
                 // Check if process has already exited with an error
                 if (processExited && exitCode !== 0) {
                     break;

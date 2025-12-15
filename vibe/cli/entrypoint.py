@@ -226,8 +226,10 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 rprint(f"[red]Failed to load session: {e}[/]")
                 sys.exit(1)
 
-        stdin_prompt = get_prompt_from_stdin()
+        # Only try to read from stdin if --prompt flag is used but empty,
+        # or for interactive mode. Don't block on stdin.read() when prompt is provided.
         if args.prompt is not None:
+            stdin_prompt = get_prompt_from_stdin() if not args.prompt else None
             programmatic_prompt = args.prompt or stdin_prompt
             if not programmatic_prompt:
                 print(
@@ -258,6 +260,8 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 print(f"Error: {e}", file=sys.stderr)
                 sys.exit(1)
         else:
+            # For interactive mode, try reading from stdin
+            stdin_prompt = get_prompt_from_stdin()
             run_textual_ui(
                 config,
                 auto_approve=args.auto_approve,
