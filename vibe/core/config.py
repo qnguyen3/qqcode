@@ -572,7 +572,25 @@ class VibeConfig(BaseSettings):
         try:
             active_model = self.get_active_model()
             provider = self.get_provider_for_model(active_model)
-            # Skip API key check if OAuth token exists and is not expired
+
+            if provider.oauth_token and provider.oauth_token.is_expired():
+                try:
+                    import asyncio
+
+                    from vibe.core.oauth.claude import refresh_token
+
+                    new_token = asyncio.run(
+                        refresh_token(provider.oauth_token.refresh_token)
+                    )
+
+                    provider.oauth_token = new_token
+
+                    save_oauth_token(provider.name, new_token)
+
+                    return self
+                except Exception:
+                    pass
+
             if provider.oauth_token and not provider.oauth_token.is_expired():
                 return self
             api_key_env = provider.api_key_env_var

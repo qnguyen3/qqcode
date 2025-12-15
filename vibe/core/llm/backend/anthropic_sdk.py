@@ -216,6 +216,33 @@ class AnthropicBackend:
             return os.getenv(self._provider.api_key_env_var)
         return None
 
+    async def _refresh_oauth_token(self) -> None:
+        """Refresh the OAuth token if it's expired."""
+        if not self._provider.oauth_token:
+            return
+
+        try:
+            from vibe.core.config import save_oauth_token
+            from vibe.core.oauth.claude import refresh_token
+
+            new_token = await refresh_token(self._provider.oauth_token.refresh_token)
+            # Update in-memory token
+            self._provider.oauth_token = new_token
+            # Persist to config
+            save_oauth_token(self._provider.name, new_token)
+        except Exception:
+            # If refresh fails, clear the token so we fall back to API key
+            self._provider.oauth_token = None
+
+    async def _ensure_fresh_token(self) -> None:
+        """Ensure OAuth token is refreshed if expired.
+
+        This should be called at the start of both complete() and complete_streaming()
+        to ensure the token is valid before making API calls.
+        """
+        if self._provider.oauth_token and self._provider.oauth_token.is_expired():
+            await self._refresh_oauth_token()
+
     def _build_client(self) -> anthropic.AsyncAnthropic:
         """Build the Anthropic client with proper authentication."""
         api_key = self._get_api_key()
@@ -272,6 +299,8 @@ class AnthropicBackend:
         tool_choice: StrToolChoice | AvailableTool | None,
         extra_headers: dict[str, str] | None,
     ) -> LLMChunk:
+        await self._ensure_fresh_token()
+
         try:
             system_parts, anthropic_messages = self._mapper.prepare_messages(
                 messages, is_oauth=self._is_oauth()
@@ -372,6 +401,8 @@ class AnthropicBackend:
         tool_choice: StrToolChoice | AvailableTool | None,
         extra_headers: dict[str, str] | None,
     ) -> AsyncGenerator[LLMChunk, None]:
+        await self._ensure_fresh_token()
+
         try:
             system_parts, anthropic_messages = self._mapper.prepare_messages(
                 messages, is_oauth=self._is_oauth()
