@@ -33,12 +33,8 @@ export class QQCodeBackend {
         const contextPath = this.buildContextFile();
 
         // Determine working directory for the command
-        // If using 'uv run qqcode', we need to be in the qqcode project directory
         let cwd = this.workspaceRoot;
         if (this.commandPath.includes('uv run')) {
-            // Check if we're in the qqcode directory
-            const fs = require('fs');
-            const path = require('path');
             if (fs.existsSync(path.join(this.workspaceRoot, 'pyproject.toml'))) {
                 cwd = this.workspaceRoot;
             } else {
@@ -52,17 +48,14 @@ export class QQCodeBackend {
         let args: string[];
 
         if (this.commandPath === 'uv run qqcode') {
-            // Special handling for 'uv run qqcode'
             command = 'uv';
             args = ['run', 'qqcode', '--prompt', prompt, '--output', 'vscode'];
         } else if (this.commandPath.startsWith('uv run ')) {
-            // Handle 'uv run <something>'
             const parts = this.commandPath.split(' ');
-            command = parts[0]; // 'uv'
-            args = parts.slice(1); // ['run', '<something>']
+            command = parts[0];
+            args = parts.slice(1);
             args.push('--prompt', prompt, '--output', 'vscode');
         } else {
-            // Regular command (e.g., 'qqcode' or '/path/to/qqcode')
             command = this.commandPath;
             args = ['--prompt', prompt, '--output', 'vscode'];
         }
@@ -75,16 +68,59 @@ export class QQCodeBackend {
             cwd: cwd,
             env: {
                 ...process.env,
-                QQCODE_VSCODE_CONTEXT: contextPath
+                QQCODE_VSCODE_CONTEXT: contextPath,
+                // Ensure Python output is unbuffered when running as subprocess
+                PYTHONUNBUFFERED: '1'
             }
         };
 
         this.outputChannel.appendLine(`[QQCode] Spawning: ${command} ${args.join(' ')}`);
+        this.outputChannel.appendLine(`[QQCode] Working directory: ${cwd}`);
+
         this.currentProcess = spawn(command, args, spawnOptions);
 
         if (!this.currentProcess.stdout) {
             throw new Error('Failed to spawn QQCode process');
         }
+
+        // Set up stderr capture IMMEDIATELY
+        let stderrBuffer = '';
+        if (this.currentProcess.stderr) {
+            this.currentProcess.stderr.on('data', (data) => {
+                const text = data.toString();
+                stderrBuffer += text;
+                this.outputChannel.appendLine(`[QQCode stderr] ${text}`);
+            });
+        }
+
+        // Track process state
+        let processExited = false;
+        let exitCode: number | null = null;
+        let processError: Error | null = null;
+
+        // Set up process event handlers IMMEDIATELY
+        const processExitPromise = new Promise<void>((resolve, reject) => {
+            this.currentProcess?.on('exit', (code) => {
+                processExited = true;
+                exitCode = code;
+                this.outputChannel.appendLine(`[QQCode] Process exited with code ${code}`);
+                if (code === 0) {
+                    resolve();
+                } else {
+                    const errorMsg = stderrBuffer
+                        ? `QQCode exited with code ${code}: ${stderrBuffer}`
+                        : `QQCode exited with code ${code}`;
+                    reject(new Error(errorMsg));
+                }
+            });
+
+            this.currentProcess?.on('error', (error) => {
+                processExited = true;
+                processError = error;
+                this.outputChannel.appendLine(`[QQCode] Process error: ${error.message}`);
+                reject(error);
+            });
+        });
 
         // Parse line-delimited JSON events
         const rl = readline.createInterface({
@@ -92,9 +128,23 @@ export class QQCodeBackend {
             crlfDelay: Infinity
         });
 
+        // Track if we've received any events
+        let receivedEvents = false;
+
         try {
+            // Process lines as they come
             for await (const line of rl) {
+                // Check if process has already exited with an error
+                if (processExited && exitCode !== 0) {
+                    break;
+                }
+
+                if (!line.trim()) {
+                    continue;
+                }
+
                 try {
+                    receivedEvents = true;
                     const event: QQCodeEvent = JSON.parse(line);
                     this.outputChannel.appendLine(`[Event] ${event.type}`);
 
@@ -108,35 +158,27 @@ export class QQCodeBackend {
                 }
             }
         } finally {
+            rl.close();
+
             // Clean up context file
             if (contextPath && fs.existsSync(contextPath)) {
                 fs.unlinkSync(contextPath);
             }
         }
 
-        // Handle stderr
-        if (this.currentProcess.stderr) {
-            this.currentProcess.stderr.on('data', (data) => {
-                this.outputChannel.appendLine(`[QQCode stderr] ${data}`);
-            });
+        // Wait for process to fully exit
+        try {
+            await processExitPromise;
+        } catch (error) {
+            // If we received no events and process failed, report the error
+            if (!receivedEvents) {
+                yield {
+                    kind: 'error',
+                    message: processError?.message || stderrBuffer || `Process failed with exit code ${exitCode}`
+                };
+            }
+            throw error;
         }
-
-        // Wait for process to exit
-        await new Promise<void>((resolve, reject) => {
-            this.currentProcess?.on('exit', (code) => {
-                this.outputChannel.appendLine(`[QQCode] Process exited with code ${code}`);
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(`QQCode exited with code ${code}`));
-                }
-            });
-
-            this.currentProcess?.on('error', (error) => {
-                this.outputChannel.appendLine(`[QQCode] Process error: ${error}`);
-                reject(error);
-            });
-        });
     }
 
     /**
