@@ -14,7 +14,7 @@
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
     const modelSelector = document.getElementById('model-selector');
-    const modelControls = document.getElementById('model-controls');
+    const modelControl = document.getElementById('model-control');
     const sessionSelector = document.getElementById('session-selector');
     const newConversationBtn = document.getElementById('new-conversation-btn');
     const refreshSessionsBtn = document.getElementById('refresh-sessions-btn');
@@ -31,7 +31,7 @@
 
     // UI State
     let uiState = {
-        modelControlsVisible: false,
+        modelControlVisible: false,
         conversationControlsVisible: false,
         currentSessionId: null,
         currentModel: null,
@@ -56,11 +56,11 @@
     }
 
     function applyRestoredState() {
-        if (uiState.modelControlsVisible) {
-            modelControls.style.display = 'block';
+        if (uiState.modelControlVisible) {
+            modelControl.style.display = 'flex';
         }
         if (uiState.conversationControlsVisible) {
-            conversationControls.style.display = 'block';
+            conversationControls.style.display = 'flex';
         }
         if (uiState.currentSessionId) {
             sessionSelector.value = uiState.currentSessionId;
@@ -137,7 +137,7 @@
 
         // Keyboard shortcuts
         userInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
             }
@@ -227,7 +227,7 @@
                 break;
             case 'updateSessionsList':
                 updateSessionsDropdown(message.sessions);
-                conversationControls.style.display = 'block';
+                conversationControls.style.display = 'flex';
                 uiState.conversationControlsVisible = true;
                 saveState();
                 break;
@@ -246,8 +246,8 @@
                 break;
             case 'updateModelsList':
                 updateModelsDropdown(message.models);
-                modelControls.style.display = 'block';
-                uiState.modelControlsVisible = true;
+                modelControl.style.display = 'flex';
+                uiState.modelControlVisible = true;
                 saveState();
                 break;
             case 'updateCurrentModel':
@@ -256,8 +256,8 @@
                 saveState();
                 break;
             case 'hideModelControls':
-                modelControls.style.display = 'none';
-                uiState.modelControlsVisible = false;
+                modelControl.style.display = 'none';
+                uiState.modelControlVisible = false;
                 saveState();
                 break;
             case 'updateCurrentMode':
@@ -278,8 +278,8 @@
     function setStreamingState(streaming) {
         isStreaming = streaming;
         sendBtn.innerHTML = streaming
-            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg><span>Stop</span>`
-            : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Send</span>`;
+            ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>`
+            : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
         sendBtn.classList.toggle('cancel', streaming);
         userInput.disabled = streaming;
     }
