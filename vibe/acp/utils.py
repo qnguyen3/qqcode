@@ -98,3 +98,22 @@ TOOL_OPTIONS = [
         kind=cast(Literal["reject_once"], ToolOption.REJECT_ONCE),
     ),
 ]
+
+# Plan-specific options for exiting plan mode
+PLAN_EXIT_OPTIONS = [
+    PermissionOption(
+        optionId=VibeSessionMode.AUTO_APPROVE,
+        name="Yes, and auto-accept all actions",
+        kind=cast(Literal["allow_always"], ToolOption.ALLOW_ALWAYS),
+    ),
+    PermissionOption(
+        optionId=VibeSessionMode.APPROVAL_REQUIRED,
+        name="Yes, and manually accept actions",
+        kind=cast(Literal["allow_once"], ToolOption.ALLOW_ONCE),
+    ),
+    PermissionOption(
+        optionId=VibeSessionMode.PLAN,
+        name="No, stay in plan mode",
+        kind=cast(Literal["reject_once"], ToolOption.REJECT_ONCE),
+    ),
+]

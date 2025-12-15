@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from pathlib import Path
 import sys
-from typing import Any, Awaitable, Callable, cast, override
+from typing import Any, cast, override
 
 from acp import (
     PROTOCOL_VERSION,
@@ -35,6 +35,7 @@ from acp.schema import (
     AllowedOutcome,
     AuthenticateResponse,
     AuthMethod,
+    ContentToolCallContent,
     CurrentModeUpdate,
     Implementation,
     ModelInfo,
@@ -53,14 +54,14 @@ from vibe.acp.tools.session_update import (
     tool_call_session_update,
     tool_result_session_update,
 )
-from vibe.acp.utils import TOOL_OPTIONS, ToolOption, VibeSessionMode
+from vibe.acp.utils import PLAN_EXIT_OPTIONS, TOOL_OPTIONS, ToolOption, VibeSessionMode
 from vibe.core import __version__
 from vibe.core.agent import Agent as VibeAgent
 from vibe.core.autocompletion.path_prompt_adapter import render_path_prompt
 from vibe.core.config import MissingAPIKeyError, VibeConfig, load_api_keys_from_env
 from vibe.core.types import (
-    AssistantEvent,
     AgentMode,
+    AssistantEvent,
     AsyncApprovalCallback,
     ModeChangedEvent,
     ToolCallEvent,
@@ -226,7 +227,7 @@ class VibeAcpAgent(AcpAgent):
             # Important: Zed expects a `kind` on the tool call to render the correct
             # approval UI (e.g. plan approval uses kind="switch_mode").
             tool_kind: str | None = None
-            if tool_name == "exit_plan_mode" or tool_name == "submit_plan":
+            if tool_name == "submit_plan":
                 tool_kind = "switch_mode"
 
             tool_call = ToolCall(
@@ -271,15 +272,24 @@ class VibeAcpAgent(AcpAgent):
             tool_call = ToolCall(
                 toolCallId=tool_call_id,
                 kind="switch_mode",
-                title="exit_plan_mode",
+                title="Ready for implementation",
                 rawInput={"plan": plan},
                 status="pending",
+                content=[
+                    ContentToolCallContent(
+                        type="content",
+                        content=TextContentBlock(
+                            type="text",
+                            text=plan,
+                        ),
+                    )
+                ],
             )
 
             request = RequestPermissionRequest(
                 sessionId=session_id,
                 toolCall=tool_call,
-                options=TOOL_OPTIONS,
+                options=PLAN_EXIT_OPTIONS,
             )
 
             response = await self.connection.requestPermission(request)
@@ -294,11 +304,17 @@ class VibeAcpAgent(AcpAgent):
                 )
 
             option_id = cast(AllowedOutcome, response.outcome).optionId
+            # The option_id is now the mode ID (auto_approve, approval_required, or plan)
             match option_id:
-                case ToolOption.ALLOW_ALWAYS:
+                case VibeSessionMode.AUTO_APPROVE:
                     return (True, AgentMode.AUTO_APPROVE.value)
-                case ToolOption.ALLOW_ONCE:
+                case VibeSessionMode.APPROVAL_REQUIRED:
                     return (True, AgentMode.INTERACTIVE.value)
+                case VibeSessionMode.PLAN:
+                    return (
+                        False,
+                        "User requested to stay in plan mode.",
+                    )
                 case _:
                     return (
                         False,

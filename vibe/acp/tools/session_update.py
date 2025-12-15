@@ -20,8 +20,7 @@ from vibe.core.utils import TaggedText, is_user_cancellation_event
 TOOL_KIND: dict[str, ToolKind] = {
     "read_file": "read",
     "grep": "search",
-    # Plan approval / mode switching
-    "exit_plan_mode": "switch_mode",
+    # Plan approval / mode switching - only submit_plan triggers switch_mode UI
     "submit_plan": "switch_mode",
 }
 

@@ -63,9 +63,11 @@ from vibe.core.utils import (
     is_user_cancellation_event,
 )
 
-# Tools allowed in Plan Mode (read-only operations + plan submission/exit)
+# Tools allowed in Plan Mode (read-only operations + plan submission)
+# Note: exit_plan_mode is NOT included because mode switching happens
+# automatically through submit_plan's approval callback
 PLAN_MODE_ALLOWED_TOOLS = frozenset(
-    {"read_file", "grep", "todo", "submit_plan", "exit_plan_mode", "bash", "skill"}
+    {"read_file", "grep", "todo", "submit_plan", "bash", "skill"}
 )
 
 
@@ -96,7 +98,7 @@ def _mode_string_to_agent_mode(mode_string: str) -> AgentMode | None:
     match mode_string:
         case "interactive":
             return AgentMode.INTERACTIVE
-        case "auto-approve":
+        case "auto-approve" | "auto_approve":
             return AgentMode.AUTO_APPROVE
         case _:
             return None

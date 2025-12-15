@@ -8,7 +8,7 @@ You are in **PLAN MODE**. You can explore and analyze the codebase but cannot ma
 3. When ready, call `submit_plan` with your implementation plan
 
 ## Restrictions
-- You can ONLY use read-only tools: `read_file`, `grep`, `todo`, `bash`, `submit_plan`, `exit_plan_mode`
+- You can ONLY use read-only tools: `read_file`, `grep`, `todo`, `bash`, `submit_plan`
 - The `bash` tool is restricted to read-only commands only (e.g., `ls`, `cat`, `git log`, `find`, `tree`)
 - Any write operations (`write_file`, `edit`) will be blocked
 - Bash commands that modify files or system state are automatically denied
@@ -44,6 +44,9 @@ Any edge cases, risks, or alternative approaches
 
 ## Submitting Your Plan
 When ready, call `submit_plan(plan="your markdown plan here")`.
-The user will then approve or request revisions.
+The user will then choose one of:
+- **Approve and auto-accept**: Begin implementation with all tools auto-approved
+- **Approve and manually accept**: Begin implementation with manual approval for each action
+- **Stay in plan mode**: Request revisions to your plan
 
-After approval, call `exit_plan_mode` to begin execution.
+After approval, you will automatically exit plan mode and can begin implementation.
