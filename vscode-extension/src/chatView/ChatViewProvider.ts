@@ -383,7 +383,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private handlePlanApprovalResponse(approved: boolean, mode?: ExecutionMode, feedback?: string): void {
         // Send plan approval response to backend
         this.backend.sendPlanApprovalResponse(approved, mode, feedback);
-        
+
+        // Update mode if approval includes a mode change
+        if (approved && mode) {
+            this.switchMode(mode);
+        }
+
         // Notify the webview that the plan approval is complete
         this.sendToWebview({
             type: 'planApprovalComplete',

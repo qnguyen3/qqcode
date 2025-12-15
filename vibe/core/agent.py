@@ -91,6 +91,17 @@ class LLMResponseError(AgentError):
     """Raised when LLM response is malformed or missing expected data."""
 
 
+def _mode_string_to_agent_mode(mode_string: str) -> AgentMode | None:
+    """Convert mode string from plan approval to AgentMode enum."""
+    match mode_string:
+        case "interactive":
+            return AgentMode.INTERACTIVE
+        case "auto-approve":
+            return AgentMode.AUTO_APPROVE
+        case _:
+            return None
+
+
 class Agent:
     def __init__(
         self,
@@ -642,6 +653,19 @@ class Agent:
                 )
 
                 self.stats.tool_calls_succeeded += 1
+
+                # Check for mode change from plan approval
+                if (
+                    hasattr(result_model, "execution_mode")
+                    and result_model.execution_mode
+                    and hasattr(result_model, "approved")
+                    and result_model.approved
+                ):
+                    new_mode = _mode_string_to_agent_mode(result_model.execution_mode)
+                    if new_mode and new_mode != self._mode:
+                        self._mode = new_mode
+                        self._regenerate_system_prompt_for_mode()
+                        yield ModeChangedEvent(new_mode=new_mode)
 
                 # Check for mode change signals in tool result (legacy)
                 if (
