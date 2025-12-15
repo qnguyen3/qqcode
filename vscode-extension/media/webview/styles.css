@@ -159,7 +159,7 @@ body::before {
     height: 28px;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     background: var(--qq-bg-surface);
     border: 1px solid var(--qq-border-default);
     border-radius: var(--qq-radius-md);
@@ -970,7 +970,7 @@ body::before {
     height: 42px;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     background: var(--qq-accent-primary-dim);
     color: white;
     border: none;
