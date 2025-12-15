@@ -17,8 +17,7 @@
 
 QQcode is a command-line coding assistant powered by AI models. It provides a conversational interface to your codebase, allowing you to use natural language to explore, modify, and interact with your projects through a powerful set of tools.
 
-> [!WARNING]
-> QQcode works on Windows, but we officially support and target UNIX environments.
+Support: MacOS, Linux, Windows (Experimental).
 
 ### One-line install (recommended)
 
