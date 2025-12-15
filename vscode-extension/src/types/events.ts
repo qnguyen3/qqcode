@@ -57,6 +57,7 @@ export type StreamChunk =
     | { kind: 'text'; text: string; accumulated: string }
     | { kind: 'tool_call'; toolName: string; toolCallId: string; args: any }
     | { kind: 'tool_result'; toolCallId: string; toolName: string; result: string; isError: boolean }
+    | { kind: 'tool_approval_required'; toolName: string; toolCallId: string; args: any }
     | { kind: 'thinking'; text: string }
     | { kind: 'error'; message: string }
     | { kind: 'session_started'; sessionId: string };

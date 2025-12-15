@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspSource}} 'unsafe-inline';">
+    <title>QQCode Chat</title>
+    <link rel="stylesheet" href="{{styleUri}}">
+</head>
+<body>
+    <div id="model-controls" style="display: none;">
+        <select id="model-selector">
+            <option value="">Loading models...</option>
+        </select>
+    </div>
+    
+    <div id="conversation-controls" style="display: none;">
+        <div class="conversation-header">
+            <select id="session-selector">
+                <option value="">New Conversation</option>
+            </select>
+            <button id="new-conversation-btn" title="Start New Conversation">+</button>
+            <button id="refresh-sessions-btn" title="Refresh">&#x21bb;</button>
+        </div>
+        <div id="current-session-badge" style="display: none;">
+            Session: <span id="session-id-display"></span>
+        </div>
+    </div>
+    
+    <div id="chat-container">
+        <div id="messages"></div>
+    </div>
+    
+    <div id="input-container">
+        <div id="input-controls">
+            <select id="mode-selector" title="Execution Mode">
+                <option value="plan">Plan Mode (Read-only)</option>
+                <option value="interactive">Interactive (Approval Required)</option>
+                <option value="auto-approve">Auto Approve</option>
+            </select>
+        </div>
+        <div id="input-row">
+            <textarea id="user-input" placeholder="Ask QQCode..." rows="3"></textarea>
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+    
+    <script src="{{scriptUri}}"></script>
+</body>
+</html>

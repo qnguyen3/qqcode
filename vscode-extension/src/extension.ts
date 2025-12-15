@@ -72,6 +72,7 @@ async function askAboutSelection() {
 
     const config = vscode.workspace.getConfiguration('qqcode');
     const autoApprove = config.get<boolean>('autoApprove', false);
+    const mode = autoApprove ? 'auto-approve' : 'plan';
 
     outputChannel.clear();
     outputChannel.show(true);
@@ -81,7 +82,7 @@ async function askAboutSelection() {
     let response = '';
 
     try {
-        for await (const chunk of backend!.streamPrompt(question, autoApprove)) {
+        for await (const chunk of backend!.streamPrompt(question, mode)) {
             if (chunk.kind === 'text') {
                 response += chunk.text;
                 outputChannel.append(chunk.text);

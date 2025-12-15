@@ -144,11 +144,28 @@ export class QQCodeBackend {
     }
 
     /**
+     * Send approval response to the running process via stdin
+     */
+    sendApprovalResponse(toolCallId: string, approved: boolean, reason?: string): void {
+        if (this.currentProcess?.stdin) {
+            const response = JSON.stringify({
+                tool_call_id: toolCallId,
+                approved,
+                reason
+            });
+            this.outputChannel.appendLine(`[QQCode] Sending approval response: ${response}`);
+            this.currentProcess.stdin.write(response + '\n');
+        } else {
+            this.outputChannel.appendLine('[QQCode] Cannot send approval - no stdin available');
+        }
+    }
+
+    /**
      * Stream prompt to QQCode CLI and yield parsed events
      */
     async *streamPrompt(
         prompt: string,
-        autoApprove: boolean = false,
+        mode: 'plan' | 'interactive' | 'auto-approve' = 'plan',
         sessionId?: string,
         modelAlias?: string
     ): AsyncGenerator<StreamChunk> {
@@ -193,9 +210,8 @@ export class QQCodeBackend {
             args.push('--model', modelAlias);
         }
 
-        if (autoApprove) {
-            args.push('--auto-approve');
-        }
+        // Add execution mode
+        args.push('--mode', mode);
 
         const spawnOptions = {
             cwd: cwd,
@@ -367,6 +383,14 @@ export class QQCodeBackend {
                     toolName: event.tool_name!,
                     result: event.result || '',
                     isError: event.is_error || false
+                };
+
+            case 'tool.approval_required':
+                return {
+                    kind: 'tool_approval_required',
+                    toolName: event.tool_name!,
+                    toolCallId: event.tool_call_id!,
+                    args: event.args || {}
                 };
 
             case 'thinking.updated':

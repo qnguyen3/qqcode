@@ -45,7 +45,16 @@ def parse_arguments() -> argparse.Namespace:
         "--auto-approve",
         action="store_true",
         default=False,
-        help="Automatically approve all tool executions.",
+        help="Automatically approve all tool executions (shortcut for --mode auto-approve).",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["plan", "interactive", "auto-approve"],
+        default=None,
+        help="Execution mode for programmatic mode (-p): "
+        "'plan' (read-only, default), 'interactive' (approval required via stdin), "
+        "'auto-approve' (execute all tools automatically).",
     )
     parser.add_argument(
         "--max-turns",
@@ -379,6 +388,15 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 args.output if hasattr(args, "output") else "text"
             )
 
+            # Determine execution mode
+            # --auto-approve flag takes precedence for backward compatibility
+            # --mode flag allows explicit control
+            execution_mode = "plan"  # default
+            if args.auto_approve:
+                execution_mode = "auto-approve"
+            elif args.mode:
+                execution_mode = args.mode
+
             try:
                 final_response = run_programmatic(
                     config=config,
@@ -387,7 +405,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                     max_price=args.max_price,
                     output_format=output_format,
                     previous_messages=loaded_messages,
-                    auto_approve=args.auto_approve,
+                    mode=execution_mode,
                     session_id=full_session_id,
                 )
                 if final_response:
