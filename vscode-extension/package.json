@@ -1,9 +1,13 @@
 {
   "name": "qqcode-companion",
   "displayName": "QQCode",
-  "description": "AI coding assistant powered by QQCode",
+  "description": "AI coding assistant powered by QQCode - your intelligent pair programmer",
   "version": "0.1.0",
   "publisher": "qqcode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-repo/qqcode"
+  },
   "engines": {
     "vscode": "^1.107.0"
   },
@@ -12,6 +16,13 @@
     "Programming Languages",
     "Other"
   ],
+  "keywords": [
+    "ai",
+    "coding assistant",
+    "code completion",
+    "pair programming",
+    "agent"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -19,12 +30,40 @@
   "contributes": {
     "commands": [
       {
-        "command": "qqcode.askSelection",
-        "title": "QQCode: Ask About Selection"
+        "command": "qqcode.openChat",
+        "title": "Open Chat",
+        "category": "QQCode",
+        "icon": "$(comment-discussion)"
       },
       {
-        "command": "qqcode.openChat",
-        "title": "QQCode: Open Chat"
+        "command": "qqcode.askSelection",
+        "title": "Ask About Selection",
+        "category": "QQCode",
+        "icon": "$(question)"
+      },
+      {
+        "command": "qqcode.explainCode",
+        "title": "Explain Code",
+        "category": "QQCode",
+        "icon": "$(book)"
+      },
+      {
+        "command": "qqcode.fixCode",
+        "title": "Fix Code",
+        "category": "QQCode",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "qqcode.improveCode",
+        "title": "Improve Code",
+        "category": "QQCode",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "qqcode.addDocs",
+        "title": "Add Documentation",
+        "category": "QQCode",
+        "icon": "$(note)"
       }
     ],
     "viewsContainers": {
@@ -32,7 +71,7 @@
         {
           "id": "qqcode",
           "title": "QQCode",
-          "icon": "$(comment-discussion)"
+          "icon": "$(sparkle)"
         }
       ]
     },
@@ -45,21 +84,104 @@
         }
       ]
     },
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "qqcode.submenu",
+          "group": "qqcode@1",
+          "when": "editorHasSelection"
+        }
+      ],
+      "qqcode.submenu": [
+        {
+          "command": "qqcode.askSelection",
+          "group": "qqcode@1"
+        },
+        {
+          "command": "qqcode.explainCode",
+          "group": "qqcode@2"
+        },
+        {
+          "command": "qqcode.fixCode",
+          "group": "qqcode@3"
+        },
+        {
+          "command": "qqcode.improveCode",
+          "group": "qqcode@4"
+        },
+        {
+          "command": "qqcode.addDocs",
+          "group": "qqcode@5"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "qqcode.askSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "qqcode.explainCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "qqcode.fixCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "qqcode.improveCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "qqcode.addDocs",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "qqcode.submenu",
+        "label": "QQCode"
+      }
+    ],
     "configuration": {
       "title": "QQCode",
       "properties": {
         "qqcode.commandPath": {
           "type": "string",
           "default": "qqcode",
-          "description": "Path to QQCode CLI executable"
+          "description": "Path to QQCode CLI executable (e.g., 'qqcode', 'uv run qqcode', or '/path/to/qqcode')"
         },
         "qqcode.autoApprove": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically approve tool executions"
+          "description": "Automatically approve all tool executions without prompting"
+        },
+        "qqcode.defaultMode": {
+          "type": "string",
+          "enum": ["plan", "interactive", "auto-approve"],
+          "default": "plan",
+          "description": "Default execution mode for new conversations"
+        },
+        "qqcode.showThinking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show AI thinking process in chat"
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "qqcode.openChat",
+        "key": "ctrl+shift+q",
+        "mac": "cmd+shift+q"
+      },
+      {
+        "command": "qqcode.askSelection",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorHasSelection"
+      }
+    ]
   },
   "scripts": {
     "bundle": "node esbuild.mjs",

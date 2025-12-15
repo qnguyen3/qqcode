@@ -1,11 +1,11 @@
 // @ts-check
-// QQCode Chat View - Webview Script
-// This script runs inside the VS Code webview and handles UI interactions
+// QQCode Command Center - Webview Script
+// Enhanced chat interface for agentic coding
 
 (function() {
     'use strict';
 
-    // Acquire VS Code API (only available in webview context)
+    // Acquire VS Code API
     // @ts-ignore
     const vscode = acquireVsCodeApi();
 
@@ -27,14 +27,15 @@
     let currentAssistantMessage = null;
     let currentThinkingElement = null;
     let isStreaming = false;
+    let toolCallMap = new Map(); // Track tool calls for result matching
 
-    // UI State for persistence across webview recreations
+    // UI State
     let uiState = {
         modelControlsVisible: false,
         conversationControlsVisible: false,
         currentSessionId: null,
         currentModel: null,
-        currentMode: 'plan',  // Default mode
+        currentMode: 'plan',
         pendingPlanApproval: null
     };
 
@@ -64,7 +65,7 @@
         if (uiState.currentSessionId) {
             sessionSelector.value = uiState.currentSessionId;
             currentSessionBadge.style.display = 'block';
-            sessionIdDisplay.textContent = uiState.currentSessionId;
+            sessionIdDisplay.textContent = truncateId(uiState.currentSessionId);
         }
         if (uiState.currentModel) {
             modelSelector.value = uiState.currentModel;
@@ -72,6 +73,13 @@
         if (uiState.currentMode) {
             modeSelector.value = uiState.currentMode;
         }
+    }
+
+    function truncateId(id) {
+        if (id.length > 12) {
+            return id.substring(0, 8) + '...';
+        }
+        return id;
     }
 
     // =====================
@@ -119,11 +127,13 @@
 
         // Refresh sessions
         refreshSessionsBtn.addEventListener('click', () => {
+            refreshSessionsBtn.classList.add('spinning');
             vscode.postMessage({ type: 'refreshSessions' });
+            setTimeout(() => refreshSessionsBtn.classList.remove('spinning'), 500);
         });
 
         // Send message
-        sendBtn.addEventListener('click', sendMessage);
+        sendBtn.addEventListener('click', handleSendClick);
 
         // Keyboard shortcuts
         userInput.addEventListener('keydown', (e) => {
@@ -134,13 +144,24 @@
         });
 
         // Auto-resize textarea
-        userInput.addEventListener('input', () => {
-            userInput.style.height = 'auto';
-            userInput.style.height = userInput.scrollHeight + 'px';
-        });
+        userInput.addEventListener('input', autoResizeInput);
 
         // Handle messages from extension
         window.addEventListener('message', handleExtensionMessage);
+    }
+
+    function handleSendClick() {
+        if (isStreaming) {
+            cancelRequest();
+        } else {
+            sendMessage();
+        }
+    }
+
+    function autoResizeInput() {
+        userInput.style.height = 'auto';
+        const newHeight = Math.min(userInput.scrollHeight, 200);
+        userInput.style.height = newHeight + 'px';
     }
 
     // =====================
@@ -158,6 +179,12 @@
 
         userInput.value = '';
         userInput.style.height = 'auto';
+        setStreamingState(true);
+    }
+
+    function cancelRequest() {
+        vscode.postMessage({ type: 'cancelRequest' });
+        setStreamingState(false);
     }
 
     function handleExtensionMessage(event) {
@@ -174,7 +201,7 @@
                 finalizeCurrentAssistantMessage();
                 break;
             case 'toolCall':
-                showToolCall(message.toolName, message.args);
+                showToolCall(message.toolName, message.toolCallId, message.args);
                 break;
             case 'toolResult':
                 showToolResult(message.toolCallId, message.result, message.isError);
@@ -196,6 +223,7 @@
                 break;
             case 'error':
                 showError(message.message);
+                setStreamingState(false);
                 break;
             case 'updateSessionsList':
                 updateSessionsDropdown(message.sessions);
@@ -215,7 +243,6 @@
                 conversationControls.style.display = 'none';
                 uiState.conversationControlsVisible = false;
                 saveState();
-                showError('Session management disabled: ' + message.reason);
                 break;
             case 'updateModelsList':
                 updateModelsDropdown(message.models);
@@ -232,7 +259,6 @@
                 modelControls.style.display = 'none';
                 uiState.modelControlsVisible = false;
                 saveState();
-                showError('Model loading failed: ' + message.reason);
                 break;
             case 'updateCurrentMode':
                 modeSelector.value = message.mode || 'plan';
@@ -240,7 +266,7 @@
                 saveState();
                 break;
             case 'setLoading':
-                setLoadingState(message.loading);
+                setStreamingState(message.loading);
                 break;
         }
     }
@@ -249,27 +275,60 @@
     // UI Update Functions
     // =====================
 
+    function setStreamingState(streaming) {
+        isStreaming = streaming;
+        sendBtn.innerHTML = streaming
+            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg><span>Stop</span>`
+            : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg><span>Send</span>`;
+        sendBtn.classList.toggle('cancel', streaming);
+        userInput.disabled = streaming;
+    }
+
     function addMessage(role, content, isHistory = false) {
         const msgDiv = document.createElement('div');
         msgDiv.className = 'message ' + role;
-        msgDiv.textContent = content;
+        msgDiv.innerHTML = formatMessageContent(content, role);
         messagesDiv.appendChild(msgDiv);
         scrollToBottom();
 
-        // Only set up streaming state for non-history assistant messages
         if (role === 'assistant' && !isHistory) {
             currentAssistantMessage = msgDiv;
             msgDiv.classList.add('streaming');
-            isStreaming = true;
-            updateInputState();
         }
+    }
+
+    function formatMessageContent(content, role) {
+        // Basic markdown-like formatting
+        let formatted = escapeHtml(content);
+
+        // Code blocks
+        formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+            return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+        });
+
+        // Inline code
+        formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // Bold
+        formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+        // Line breaks
+        formatted = formatted.replace(/\n/g, '<br>');
+
+        return formatted;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     function updateCurrentAssistantMessage(content) {
         if (!currentAssistantMessage) {
             addMessage('assistant', content);
         } else {
-            currentAssistantMessage.textContent = content;
+            currentAssistantMessage.innerHTML = formatMessageContent(content, 'assistant');
             scrollToBottom();
         }
     }
@@ -277,43 +336,53 @@
     function finalizeCurrentAssistantMessage() {
         if (currentAssistantMessage) {
             currentAssistantMessage.classList.remove('streaming');
-            // Move the assistant message to the end so it appears after all tool calls
             messagesDiv.appendChild(currentAssistantMessage);
             scrollToBottom();
             currentAssistantMessage = null;
         }
-        isStreaming = false;
-        updateInputState();
+        setStreamingState(false);
+        toolCallMap.clear();
     }
 
-    function showToolCall(toolName, args) {
+    function showToolCall(toolName, toolCallId, args) {
         const toolDiv = document.createElement('div');
         toolDiv.className = 'tool-call';
+        toolDiv.id = `tool-${toolCallId}`;
 
         const header = document.createElement('div');
         header.className = 'tool-call-header';
-        header.textContent = '🔧 ' + toolName;
+        header.textContent = formatToolName(toolName);
 
         const argsDiv = document.createElement('div');
+        argsDiv.className = 'tool-call-args';
         argsDiv.textContent = formatArgs(args);
 
         toolDiv.appendChild(header);
         toolDiv.appendChild(argsDiv);
         messagesDiv.appendChild(toolDiv);
+        toolCallMap.set(toolCallId, toolDiv);
         scrollToBottom();
     }
 
     function showToolResult(toolCallId, result, isError) {
         const resultDiv = document.createElement('div');
-        resultDiv.className = 'tool-call';
-        if (isError) {
-            resultDiv.style.borderLeft = '3px solid var(--vscode-errorForeground)';
-        }
-        
-        const truncatedResult = result.length > 500 
-            ? result.substring(0, 500) + '... (truncated)' 
+        resultDiv.className = 'tool-result' + (isError ? ' error' : '');
+
+        const header = document.createElement('div');
+        header.className = 'tool-result-header';
+        header.innerHTML = isError
+            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error`
+            : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Result`;
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'tool-result-content';
+        const truncatedResult = result.length > 500
+            ? result.substring(0, 500) + '\n... (truncated)'
             : result;
-        resultDiv.textContent = '→ ' + truncatedResult;
+        contentDiv.textContent = truncatedResult;
+
+        resultDiv.appendChild(header);
+        resultDiv.appendChild(contentDiv);
         messagesDiv.appendChild(resultDiv);
         scrollToBottom();
     }
@@ -325,29 +394,30 @@
 
         const header = document.createElement('div');
         header.className = 'tool-approval-header';
-        header.textContent = '⚠️ Tool requires approval: ' + toolName;
+        header.textContent = `Approve ${formatToolName(toolName)}?`;
 
-        const argsDiv = document.createElement('div');
-        argsDiv.textContent = formatArgs(args);
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'tool-approval-content';
+        contentDiv.textContent = formatArgs(args);
 
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'tool-approval-actions';
 
         const approveBtn = document.createElement('button');
         approveBtn.className = 'approve-btn';
-        approveBtn.textContent = 'Approve';
+        approveBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Approve`;
         approveBtn.onclick = () => handleToolApproval(toolCallId, true, approvalDiv);
 
         const rejectBtn = document.createElement('button');
         rejectBtn.className = 'reject-btn';
-        rejectBtn.textContent = 'Reject';
+        rejectBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reject`;
         rejectBtn.onclick = () => handleToolApproval(toolCallId, false, approvalDiv);
 
         actionsDiv.appendChild(approveBtn);
         actionsDiv.appendChild(rejectBtn);
 
         approvalDiv.appendChild(header);
-        approvalDiv.appendChild(argsDiv);
+        approvalDiv.appendChild(contentDiv);
         approvalDiv.appendChild(actionsDiv);
         messagesDiv.appendChild(approvalDiv);
         scrollToBottom();
@@ -360,23 +430,28 @@
             approved: approved
         });
 
-        // Update UI to show decision
         const actionsDiv = approvalDiv.querySelector('.tool-approval-actions');
         if (actionsDiv) {
-            actionsDiv.innerHTML = approved 
-                ? '<span style="color: var(--vscode-testing-iconPassed)">✓ Approved</span>'
-                : '<span style="color: var(--vscode-errorForeground)">✗ Rejected</span>';
+            actionsDiv.innerHTML = `<div class="approval-resolved ${approved ? 'approved' : 'rejected'}">
+                ${approved
+                    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Approved'
+                    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected'
+                }
+            </div>`;
         }
+
+        // Stop the pulse animation
+        approvalDiv.style.animation = 'none';
     }
 
     function updateThinking(content) {
         if (!currentThinkingElement) {
             currentThinkingElement = document.createElement('div');
             currentThinkingElement.className = 'thinking';
-            
+
             const header = document.createElement('div');
-            header.className = 'thinking-header thinking-toggle';
-            header.textContent = 'Thinking...';
+            header.className = 'thinking-header';
+            header.innerHTML = `<span>Thinking...</span><span class="thinking-toggle"></span>`;
             header.onclick = () => currentThinkingElement.classList.toggle('collapsed');
 
             const contentDiv = document.createElement('div');
@@ -396,12 +471,13 @@
 
     function finalizeThinking() {
         if (currentThinkingElement) {
-            // Collapse thinking by default when done
             currentThinkingElement.classList.add('collapsed');
-            const header = currentThinkingElement.querySelector('.thinking-header');
+            const header = currentThinkingElement.querySelector('.thinking-header span:first-child');
             if (header) {
-                header.textContent = 'Thought process (click to expand)';
+                header.textContent = 'Thought process';
             }
+            // Stop animation
+            currentThinkingElement.style.animation = 'none';
             currentThinkingElement = null;
         }
     }
@@ -409,36 +485,28 @@
     function showError(message) {
         const errorDiv = document.createElement('div');
         errorDiv.className = 'error';
-        errorDiv.textContent = '❌ ' + message;
+        errorDiv.innerHTML = `<span>${escapeHtml(message)}</span>`;
         messagesDiv.appendChild(errorDiv);
         scrollToBottom();
-
-        // Reset streaming state on error
-        isStreaming = false;
-        updateInputState();
     }
 
     function clearMessages() {
         messagesDiv.innerHTML = '';
         currentAssistantMessage = null;
         currentThinkingElement = null;
-        isStreaming = false;
-        updateInputState();
+        toolCallMap.clear();
+        setStreamingState(false);
     }
 
     function updateSessionsDropdown(sessions) {
-        // Preserve current selection before updating
         const currentValue = sessionSelector.value;
-
-        // Keep "New Conversation" option
         sessionSelector.innerHTML = '<option value="">New Conversation</option>';
 
         sessions.forEach(session => {
             const option = document.createElement('option');
             option.value = session.session_id;
 
-            // Format: "Preview text... (Dec 15, 10:30)"
-            const preview = session.last_user_message.substring(0, 40);
+            const preview = session.last_user_message.substring(0, 35);
             const date = new Date(session.end_time);
             const timeStr = date.toLocaleString('en-US', {
                 month: 'short',
@@ -447,11 +515,10 @@
                 minute: '2-digit'
             });
 
-            option.textContent = preview + '... (' + timeStr + ')';
+            option.textContent = `${preview}... (${timeStr})`;
             sessionSelector.appendChild(option);
         });
 
-        // Restore selection if it still exists in the list
         if (currentValue) {
             sessionSelector.value = currentValue;
         } else if (uiState.currentSessionId) {
@@ -462,7 +529,7 @@
     function updateCurrentSessionBadge(sessionId) {
         if (sessionId) {
             currentSessionBadge.style.display = 'block';
-            sessionIdDisplay.textContent = sessionId;
+            sessionIdDisplay.textContent = truncateId(sessionId);
             sessionSelector.value = sessionId;
         } else {
             currentSessionBadge.style.display = 'none';
@@ -471,11 +538,9 @@
     }
 
     function updateModelsDropdown(models) {
-        // Preserve current selection before updating
         const currentValue = modelSelector.value || uiState.currentModel;
-
-        // Group models by provider
         const providers = {};
+
         models.forEach(model => {
             if (!providers[model.provider]) {
                 providers[model.provider] = [];
@@ -483,10 +548,8 @@
             providers[model.provider].push(model);
         });
 
-        // Clear existing options
         modelSelector.innerHTML = '';
 
-        // Add models grouped by provider
         Object.keys(providers).sort().forEach(provider => {
             const optgroup = document.createElement('optgroup');
             optgroup.label = provider.charAt(0).toUpperCase() + provider.slice(1);
@@ -495,7 +558,6 @@
                 const option = document.createElement('option');
                 option.value = model.alias;
 
-                // Display name with special mode indicator
                 let displayName = model.alias;
                 if (model.alias.includes(':thinking')) {
                     displayName = model.alias.replace(':thinking', ' (Thinking)');
@@ -508,42 +570,8 @@
             modelSelector.appendChild(optgroup);
         });
 
-        // Restore selection if it exists in the list
         if (currentValue) {
             modelSelector.value = currentValue;
-        }
-    }
-
-    function setLoadingState(loading) {
-        isStreaming = loading;
-        updateInputState();
-    }
-
-    function updateInputState() {
-        sendBtn.disabled = isStreaming;
-        sendBtn.textContent = isStreaming ? 'Cancel' : 'Send';
-        
-        if (isStreaming) {
-            sendBtn.onclick = () => vscode.postMessage({ type: 'cancelRequest' });
-        } else {
-            sendBtn.onclick = sendMessage;
-        }
-    }
-
-    // =====================
-    // Utilities
-    // =====================
-
-    function scrollToBottom() {
-        const container = document.getElementById('chat-container');
-        container.scrollTop = container.scrollHeight;
-    }
-
-    function formatArgs(args) {
-        try {
-            return JSON.stringify(args, null, 2);
-        } catch {
-            return String(args);
         }
     }
 
@@ -552,107 +580,74 @@
     // =====================
 
     function showPlanApproval(plan) {
-        // Store the plan for later use
         uiState.pendingPlanApproval = plan;
         saveState();
 
-        // Create plan approval container
         const approvalDiv = document.createElement('div');
         approvalDiv.className = 'plan-approval';
         approvalDiv.id = 'plan-approval-container';
 
-        // Create header
-        const header = document.createElement('div');
-        header.className = 'plan-approval-header';
-        header.textContent = '📋 Plan Ready for Review';
+        approvalDiv.innerHTML = `
+            <div class="plan-approval-header">Plan Ready for Review</div>
+            <div class="plan-content-container">
+                <div class="plan-title">Implementation Plan</div>
+                <div class="plan-content">${escapeHtml(plan)}</div>
+            </div>
+            <div class="plan-options-container">
+                <div class="plan-option">
+                    <button class="plan-option-button" data-action="auto">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        Execute with Auto-Approve
+                    </button>
+                    <div class="plan-option-description">Run the plan automatically without interruption</div>
+                </div>
+                <div class="plan-option">
+                    <button class="plan-option-button" data-action="manual">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Execute with Manual Approval
+                    </button>
+                    <div class="plan-option-description">Review and approve each step</div>
+                </div>
+                <div class="plan-option">
+                    <button class="plan-option-button" data-action="revise">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Revise Plan
+                    </button>
+                    <div class="plan-option-description">Provide feedback to improve the plan</div>
+                </div>
+            </div>
+            <div class="revision-container" style="display: none;">
+                <textarea class="revision-input" placeholder="Describe how you'd like to modify the plan..."></textarea>
+                <div class="revision-buttons">
+                    <button class="revision-cancel-btn">Cancel</button>
+                    <button class="revision-submit-btn">Submit Feedback</button>
+                </div>
+            </div>
+        `;
 
-        // Create plan content container
-        const planContainer = document.createElement('div');
-        planContainer.className = 'plan-content-container';
-
-        // Add plan title
-        const planTitle = document.createElement('div');
-        planTitle.className = 'plan-title';
-        planTitle.textContent = 'Review the plan below:';
-
-        // Add plan content
-        const planContent = document.createElement('div');
-        planContent.className = 'plan-content';
-        planContent.textContent = plan;
-
-        // Create options container
-        const optionsContainer = document.createElement('div');
-        optionsContainer.className = 'plan-options-container';
-
-        // Create option buttons
-        const options = [
-            { id: 'auto', text: 'Execute with Auto-Approve', description: 'Run the plan automatically' },
-            { id: 'manual', text: 'Execute with Manual Approval', description: 'Review each step' },
-            { id: 'revise', text: 'Revise Plan', description: 'Give feedback to improve the plan' }
-        ];
-
-        options.forEach((option, index) => {
-            const optionDiv = document.createElement('div');
-            optionDiv.className = 'plan-option';
-            optionDiv.dataset.option = option.id;
-
-            const optionButton = document.createElement('button');
-            optionButton.className = 'plan-option-button';
-            optionButton.textContent = `${index + 1}. ${option.text}`;
-            optionButton.onclick = () => handlePlanOptionSelect(option.id);
-
-            const optionDesc = document.createElement('div');
-            optionDesc.className = 'plan-option-description';
-            optionDesc.textContent = option.description;
-
-            optionDiv.appendChild(optionButton);
-            optionDiv.appendChild(optionDesc);
-            optionsContainer.appendChild(optionDiv);
+        // Event handlers
+        approvalDiv.querySelectorAll('.plan-option-button').forEach(btn => {
+            btn.addEventListener('click', () => handlePlanOptionSelect(btn.dataset.action, approvalDiv));
         });
 
-        // Create revision input (hidden by default)
-        const revisionContainer = document.createElement('div');
-        revisionContainer.className = 'revision-container';
-        revisionContainer.style.display = 'none';
+        const revisionContainer = approvalDiv.querySelector('.revision-container');
+        const revisionInput = approvalDiv.querySelector('.revision-input');
 
-        const revisionInput = document.createElement('textarea');
-        revisionInput.className = 'revision-input';
-        revisionInput.placeholder = 'Type your revision feedback and press Enter...';
-        revisionInput.id = 'revision-input';
+        approvalDiv.querySelector('.revision-cancel-btn').addEventListener('click', () => {
+            revisionContainer.style.display = 'none';
+            approvalDiv.querySelector('.plan-options-container').style.display = 'flex';
+        });
 
-        const revisionButtons = document.createElement('div');
-        revisionButtons.className = 'revision-buttons';
+        approvalDiv.querySelector('.revision-submit-btn').addEventListener('click', () => {
+            const feedback = revisionInput.value.trim();
+            if (feedback) {
+                sendPlanApprovalResponse(false, undefined, feedback);
+            }
+        });
 
-        const submitRevisionBtn = document.createElement('button');
-        submitRevisionBtn.className = 'revision-submit-btn';
-        submitRevisionBtn.textContent = 'Submit Revision';
-        submitRevisionBtn.onclick = () => submitRevision();
-
-        const cancelRevisionBtn = document.createElement('button');
-        cancelRevisionBtn.className = 'revision-cancel-btn';
-        cancelRevisionBtn.textContent = 'Cancel';
-        cancelRevisionBtn.onclick = () => cancelRevision();
-
-        revisionButtons.appendChild(submitRevisionBtn);
-        revisionButtons.appendChild(cancelRevisionBtn);
-
-        revisionContainer.appendChild(revisionInput);
-        revisionContainer.appendChild(revisionButtons);
-
-        // Assemble the approval UI
-        planContainer.appendChild(planTitle);
-        planContainer.appendChild(planContent);
-
-        approvalDiv.appendChild(header);
-        approvalDiv.appendChild(planContainer);
-        approvalDiv.appendChild(optionsContainer);
-        approvalDiv.appendChild(revisionContainer);
-
-        // Add to messages
         messagesDiv.appendChild(approvalDiv);
         scrollToBottom();
 
-        // Set up keyboard shortcuts
         document.addEventListener('keydown', handlePlanApprovalKeydown);
     }
 
@@ -661,17 +656,16 @@
         if (approvalDiv) {
             approvalDiv.remove();
         }
-
-        // Clear pending plan approval
         uiState.pendingPlanApproval = null;
         saveState();
-
-        // Remove keyboard shortcuts
         document.removeEventListener('keydown', handlePlanApprovalKeydown);
     }
 
-    function handlePlanOptionSelect(optionId) {
-        switch (optionId) {
+    function handlePlanOptionSelect(action, approvalDiv) {
+        const optionsContainer = approvalDiv.querySelector('.plan-options-container');
+        const revisionContainer = approvalDiv.querySelector('.revision-container');
+
+        switch (action) {
             case 'auto':
                 sendPlanApprovalResponse(true, 'auto-approve');
                 break;
@@ -679,45 +673,10 @@
                 sendPlanApprovalResponse(true, 'interactive');
                 break;
             case 'revise':
-                showRevisionInput();
+                optionsContainer.style.display = 'none';
+                revisionContainer.style.display = 'block';
+                approvalDiv.querySelector('.revision-input').focus();
                 break;
-        }
-    }
-
-    function showRevisionInput() {
-        const optionsContainer = document.querySelector('.plan-options-container');
-        const revisionContainer = document.querySelector('.revision-container');
-
-        if (optionsContainer) {
-            optionsContainer.style.display = 'none';
-        }
-
-        if (revisionContainer) {
-            revisionContainer.style.display = 'block';
-            document.getElementById('revision-input').focus();
-        }
-    }
-
-    function cancelRevision() {
-        const optionsContainer = document.querySelector('.plan-options-container');
-        const revisionContainer = document.querySelector('.revision-container');
-
-        if (optionsContainer) {
-            optionsContainer.style.display = 'flex';
-        }
-
-        if (revisionContainer) {
-            revisionContainer.style.display = 'none';
-            document.getElementById('revision-input').value = '';
-        }
-    }
-
-    function submitRevision() {
-        const revisionInput = document.getElementById('revision-input');
-        const feedback = revisionInput.value.trim();
-
-        if (feedback) {
-            sendPlanApprovalResponse(false, undefined, feedback);
         }
     }
 
@@ -731,35 +690,76 @@
     }
 
     function handlePlanApprovalKeydown(event) {
-        // Handle keyboard shortcuts for plan approval
-        if (event.target.tagName === 'TEXTAREA' && event.target.id === 'revision-input') {
-            // In revision input mode
+        const revisionInput = document.querySelector('.revision-input');
+        if (revisionInput && document.activeElement === revisionInput) {
             if (event.key === 'Enter' && event.ctrlKey) {
                 event.preventDefault();
-                submitRevision();
+                const feedback = revisionInput.value.trim();
+                if (feedback) {
+                    sendPlanApprovalResponse(false, undefined, feedback);
+                }
             } else if (event.key === 'Escape') {
                 event.preventDefault();
-                cancelRevision();
+                const approvalDiv = document.getElementById('plan-approval-container');
+                if (approvalDiv) {
+                    approvalDiv.querySelector('.revision-container').style.display = 'none';
+                    approvalDiv.querySelector('.plan-options-container').style.display = 'flex';
+                }
             }
             return;
         }
 
-        // Global shortcuts
+        // Global shortcuts when not in revision mode
+        const approvalDiv = document.getElementById('plan-approval-container');
+        if (!approvalDiv) return;
+
         switch (event.key) {
             case '1':
                 event.preventDefault();
-                handlePlanOptionSelect('auto');
+                handlePlanOptionSelect('auto', approvalDiv);
                 break;
             case '2':
                 event.preventDefault();
-                handlePlanOptionSelect('manual');
+                handlePlanOptionSelect('manual', approvalDiv);
                 break;
             case '3':
             case 'r':
             case 'R':
                 event.preventDefault();
-                handlePlanOptionSelect('revise');
+                handlePlanOptionSelect('revise', approvalDiv);
                 break;
+        }
+    }
+
+    // =====================
+    // Utilities
+    // =====================
+
+    function scrollToBottom() {
+        const container = document.getElementById('chat-container');
+        requestAnimationFrame(() => {
+            container.scrollTop = container.scrollHeight;
+        });
+    }
+
+    function formatToolName(toolName) {
+        // Convert snake_case to Title Case
+        return toolName
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    function formatArgs(args) {
+        try {
+            const formatted = JSON.stringify(args, null, 2);
+            // Truncate if too long
+            if (formatted.length > 500) {
+                return formatted.substring(0, 500) + '\n...';
+            }
+            return formatted;
+        } catch {
+            return String(args);
         }
     }
 
@@ -770,14 +770,14 @@
     function init() {
         loadState();
         setupEventListeners();
-        
-        // Signal to extension that webview is ready to receive messages
+        autoResizeInput();
+
+        // Signal ready
         vscode.postMessage({ type: 'webviewReady' });
-        
-        // Focus input on load
+
+        // Focus input
         userInput.focus();
     }
 
-    // Start the application
     init();
 })();

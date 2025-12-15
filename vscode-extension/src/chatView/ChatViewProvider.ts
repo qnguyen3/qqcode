@@ -3,10 +3,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { QQCodeBackend } from '../qqcodeBackend';
 import { SessionSummary, ModelInfo } from '../types/events';
-import { 
-    ExtensionToWebviewMessage, 
+import { QQCodeStatusBar } from '../statusBar';
+import {
+    ExtensionToWebviewMessage,
     WebviewToExtensionMessage,
-    ExecutionMode 
+    ExecutionMode
 } from './protocol/messages';
 
 /**
@@ -40,6 +41,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private backend: QQCodeBackend;
     private extensionContext: vscode.ExtensionContext;
+    private statusBar: QQCodeStatusBar | null;
 
     // State
     private state: ChatState = {
@@ -62,10 +64,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     constructor(
         private readonly extensionUri: vscode.Uri,
         backend: QQCodeBackend,
-        extensionContext: vscode.ExtensionContext
+        extensionContext: vscode.ExtensionContext,
+        statusBar?: QQCodeStatusBar | null
     ) {
         this.backend = backend;
         this.extensionContext = extensionContext;
+        this.statusBar = statusBar || null;
         this.restoreState();
     }
 
@@ -246,6 +250,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         this.state.isStreaming = true;
         this.state.accumulatedThinking = '';
+        this.statusBar?.setThinking();
 
         // Add user message to UI
         this.sendToWebview({
@@ -276,6 +281,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                             type: 'updateAssistantMessage',
                             content: chunk.accumulated
                         });
+                        this.statusBar?.setStreaming();
                         break;
 
                     case 'tool_call':
@@ -285,6 +291,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                             toolCallId: chunk.toolCallId,
                             args: chunk.args
                         });
+                        this.statusBar?.setRunningTool(chunk.toolName);
                         break;
 
                     case 'tool_result':
@@ -309,6 +316,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                             toolCallId: chunk.toolCallId,
                             args: chunk.args as Record<string, unknown>
                         });
+                        this.statusBar?.setWaitingApproval(chunk.toolName);
                         break;
 
                     case 'plan_approval_required':
@@ -320,6 +328,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                             type: 'planApprovalRequired',
                             plan: chunk.plan || ''
                         });
+                        this.statusBar?.setPlanReview();
                         break;
 
                     case 'thinking':
@@ -328,6 +337,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                             type: 'thinkingUpdate',
                             content: this.state.accumulatedThinking
                         });
+                        this.statusBar?.setThinking();
                         break;
 
                     case 'error':
@@ -335,6 +345,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                             type: 'error',
                             message: chunk.message
                         });
+                        this.statusBar?.setError(chunk.message);
                         break;
                 }
             }
@@ -357,9 +368,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 type: 'error',
                 message: `Error: ${error}`
             });
+            this.statusBar?.setError(String(error));
         } finally {
             this.state.isStreaming = false;
             this.state.accumulatedThinking = '';
+            this.statusBar?.setReady();
         }
     }
 

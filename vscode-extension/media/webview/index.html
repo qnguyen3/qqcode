@@ -3,48 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspSource}} 'unsafe-inline';">
-    <title>QQCode Chat</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src {{cspSource}} 'unsafe-inline';">
+    <title>QQCode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{styleUri}}">
 </head>
 <body>
+    <!-- Model Selector -->
     <div id="model-controls" style="display: none;">
-        <select id="model-selector">
+        <select id="model-selector" aria-label="Select AI Model">
             <option value="">Loading models...</option>
         </select>
     </div>
-    
+
+    <!-- Conversation Controls -->
     <div id="conversation-controls" style="display: none;">
         <div class="conversation-header">
-            <select id="session-selector">
+            <select id="session-selector" aria-label="Select Conversation">
                 <option value="">New Conversation</option>
             </select>
-            <button id="new-conversation-btn" title="Start New Conversation">+</button>
-            <button id="refresh-sessions-btn" title="Refresh">&#x21bb;</button>
+            <button id="new-conversation-btn" title="Start New Conversation" aria-label="Start New Conversation">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
+            <button id="refresh-sessions-btn" title="Refresh Sessions" aria-label="Refresh Sessions">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6"></path>
+                    <path d="M1 20v-6h6"></path>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+            </button>
         </div>
         <div id="current-session-badge" style="display: none;">
-            Session: <span id="session-id-display"></span>
+            <span id="session-id-display"></span>
         </div>
     </div>
-    
+
+    <!-- Chat Messages Area -->
     <div id="chat-container">
         <div id="messages"></div>
     </div>
-    
+
+    <!-- Input Area -->
     <div id="input-container">
         <div id="input-controls">
-            <select id="mode-selector" title="Execution Mode">
-                <option value="plan">Plan Mode (Read-only)</option>
-                <option value="interactive">Interactive (Approval Required)</option>
+            <select id="mode-selector" title="Execution Mode" aria-label="Select Execution Mode">
+                <option value="plan">Plan Mode</option>
+                <option value="interactive">Interactive</option>
                 <option value="auto-approve">Auto Approve</option>
             </select>
         </div>
         <div id="input-row">
-            <textarea id="user-input" placeholder="Ask QQCode..." rows="3"></textarea>
-            <button id="send-btn">Send</button>
+            <textarea
+                id="user-input"
+                placeholder="Ask QQCode anything..."
+                rows="1"
+                aria-label="Message input"
+            ></textarea>
+            <button id="send-btn" aria-label="Send message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                <span>Send</span>
+            </button>
+        </div>
+        <div class="keyboard-hint">
+            <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send
         </div>
     </div>
-    
+
     <script src="{{scriptUri}}"></script>
 </body>
 </html>
