@@ -21,8 +21,30 @@
       {
         "command": "qqcode.askSelection",
         "title": "QQCode: Ask About Selection"
+      },
+      {
+        "command": "qqcode.openChat",
+        "title": "QQCode: Open Chat"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "qqcode",
+          "title": "QQCode",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "qqcode": [
+        {
+          "id": "qqcodeChatView",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
     "configuration": {
       "title": "QQCode",
       "properties": {

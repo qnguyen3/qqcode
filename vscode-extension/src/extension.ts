@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { QQCodeBackend } from './qqcodeBackend';
+import { ChatViewProvider } from './chatView';
 
 let backend: QQCodeBackend | null = null;
 let outputChannel: vscode.OutputChannel;
@@ -20,6 +21,22 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine(`QQCode CLI path: ${commandPath}`);
     outputChannel.appendLine(`Workspace root: ${workspaceRoot}`);
 
+    // Register chat view provider
+    const chatProvider = new ChatViewProvider(context.extensionUri, backend);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            ChatViewProvider.viewType,
+            chatProvider
+        )
+    );
+
+    // Register command: Open Chat
+    context.subscriptions.push(
+        vscode.commands.registerCommand('qqcode.openChat', () => {
+            vscode.commands.executeCommand('qqcodeChatView.focus');
+        })
+    );
+
     // Register command: Ask About Selection
     context.subscriptions.push(
         vscode.commands.registerCommand('qqcode.askSelection', async () => {
@@ -28,7 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     outputChannel.appendLine('QQCode commands registered');
-    vscode.window.showInformationMessage('QQCode extension loaded! Use "QQCode: Ask About Selection" command.');
+    vscode.window.showInformationMessage('QQCode extension loaded! Check the QQCode sidebar for chat.');
 }
 
 async function askAboutSelection() {
