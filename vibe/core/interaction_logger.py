@@ -234,6 +234,61 @@ class InteractionLogger:
         return None
 
     @staticmethod
+    def list_sessions(
+        config: SessionLoggingConfig, limit: int = 20
+    ) -> list[tuple[Path, dict[str, Any]]]:
+        """List recent sessions with summary info, sorted by most recent first.
+
+        Returns list of (filepath, summary_dict) tuples where summary_dict contains:
+        - session_id: Short session ID (8 chars)
+        - end_time: Session end time for display
+        - last_user_message: Last user message content (for preview)
+        """
+        save_dir = Path(config.save_dir)
+        if not save_dir.exists():
+            return []
+
+        pattern = f"{config.session_prefix}_*.json"
+        session_files = list(save_dir.glob(pattern))
+
+        if not session_files:
+            return []
+
+        # Sort by modification time, most recent first
+        session_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+        # Limit the number of sessions
+        session_files = session_files[:limit]
+
+        results: list[tuple[Path, dict[str, Any]]] = []
+        for filepath in session_files:
+            try:
+                with filepath.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                metadata = data.get("metadata", {})
+                messages = data.get("messages", [])
+
+                # Find last user message
+                last_user_message = ""
+                for msg in reversed(messages):
+                    if msg.get("role") == "user":
+                        last_user_message = str(msg.get("content", ""))[:100]
+                        break
+
+                summary = {
+                    "session_id": metadata.get("session_id", "unknown")[:8],
+                    "end_time": metadata.get("end_time", metadata.get("start_time", "")),
+                    "last_user_message": last_user_message,
+                }
+                results.append((filepath, summary))
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                # Skip corrupted or unreadable files
+                continue
+
+        return results
+
+    @staticmethod
     def load_session(filepath: Path) -> tuple[list[LLMMessage], dict[str, Any]]:
         with filepath.open("r", encoding="utf-8") as f:
             content = f.read()

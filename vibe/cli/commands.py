@@ -46,6 +46,11 @@ class CommandRegistry:
                 description="Show path to current interaction log file",
                 handler="_show_log_path",
             ),
+            "conversations": Command(
+                aliases=frozenset(["/conversations", "/sessions", "/history"]),
+                description="Browse and continue past conversations",
+                handler="_show_conversations",
+            ),
             "compact": Command(
                 aliases=frozenset(["/compact", "/summarize"]),
                 description="Compact conversation history by summarizing",
