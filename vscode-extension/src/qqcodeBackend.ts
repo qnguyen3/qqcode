@@ -29,15 +29,6 @@ export class QQCodeBackend {
         prompt: string,
         autoApprove: boolean = false
     ): AsyncGenerator<StreamChunk> {
-        const args = [
-            '--prompt', prompt,
-            '--output', 'vscode'
-        ];
-
-        if (autoApprove) {
-            args.push('--auto-approve');
-        }
-
         // Build context file
         const contextPath = this.buildContextFile();
 
@@ -56,6 +47,30 @@ export class QQCodeBackend {
             }
         }
 
+        // Parse command and build args
+        let command: string;
+        let args: string[];
+
+        if (this.commandPath === 'uv run qqcode') {
+            // Special handling for 'uv run qqcode'
+            command = 'uv';
+            args = ['run', 'qqcode', '--prompt', prompt, '--output', 'vscode'];
+        } else if (this.commandPath.startsWith('uv run ')) {
+            // Handle 'uv run <something>'
+            const parts = this.commandPath.split(' ');
+            command = parts[0]; // 'uv'
+            args = parts.slice(1); // ['run', '<something>']
+            args.push('--prompt', prompt, '--output', 'vscode');
+        } else {
+            // Regular command (e.g., 'qqcode' or '/path/to/qqcode')
+            command = this.commandPath;
+            args = ['--prompt', prompt, '--output', 'vscode'];
+        }
+
+        if (autoApprove) {
+            args.push('--auto-approve');
+        }
+
         const spawnOptions = {
             cwd: cwd,
             env: {
@@ -64,8 +79,8 @@ export class QQCodeBackend {
             }
         };
 
-        this.outputChannel.appendLine(`[QQCode] Spawning: ${this.commandPath} ${args.join(' ')}`);
-        this.currentProcess = spawn(this.commandPath, args, spawnOptions);
+        this.outputChannel.appendLine(`[QQCode] Spawning: ${command} ${args.join(' ')}`);
+        this.currentProcess = spawn(command, args, spawnOptions);
 
         if (!this.currentProcess.stdout) {
             throw new Error('Failed to spawn QQCode process');
