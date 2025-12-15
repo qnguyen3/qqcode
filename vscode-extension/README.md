@@ -11,9 +11,32 @@ AI coding assistant powered by QQCode.
 
 ## Requirements
 
-- QQCode CLI installed and available in PATH
-  - Install: `pip install qqcode` or `uv tool install qqcode`
-  - Test: `qqcode --version`
+### For Development/Testing (Current Branch)
+
+The extension requires QQCode with the `--output vscode` feature (Phase 1).
+
+**Option 1: Use Local Development Version (Recommended for Testing)**
+- Have the QQCode project checked out on `feature/vscode-extension` branch
+- When testing the extension, open the **QQCode project directory** as your workspace
+- The extension will use `uv run qqcode` by default, which runs the local version
+
+**Option 2: Install from Git Branch**
+```bash
+# Install the development version with Phase 1 changes
+uv tool install git+https://github.com/qnguyen3/qqcode.git@feature/vscode-extension
+
+# Or if already installed, upgrade
+uv tool upgrade qqcode
+```
+
+**Verify it works:**
+```bash
+# Should show 'vscode' in the choices
+qqcode -h | grep -A2 "output"
+
+# Test it
+qqcode --prompt "hello" --output vscode
+```
 
 ## Installation
 

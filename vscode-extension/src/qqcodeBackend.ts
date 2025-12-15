@@ -41,8 +41,23 @@ export class QQCodeBackend {
         // Build context file
         const contextPath = this.buildContextFile();
 
+        // Determine working directory for the command
+        // If using 'uv run qqcode', we need to be in the qqcode project directory
+        let cwd = this.workspaceRoot;
+        if (this.commandPath.includes('uv run')) {
+            // Check if we're in the qqcode directory
+            const fs = require('fs');
+            const path = require('path');
+            if (fs.existsSync(path.join(this.workspaceRoot, 'pyproject.toml'))) {
+                cwd = this.workspaceRoot;
+            } else {
+                this.outputChannel.appendLine('[Warning] Using "uv run qqcode" but not in qqcode project directory');
+                this.outputChannel.appendLine('[Warning] Command may fail. Set qqcode.commandPath to absolute path or install qqcode globally');
+            }
+        }
+
         const spawnOptions = {
-            cwd: this.workspaceRoot,
+            cwd: cwd,
             env: {
                 ...process.env,
                 QQCODE_VSCODE_CONTEXT: contextPath

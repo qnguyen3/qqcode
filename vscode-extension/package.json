@@ -28,8 +28,8 @@
       "properties": {
         "qqcode.commandPath": {
           "type": "string",
-          "default": "qqcode",
-          "description": "Path to QQCode CLI executable"
+          "default": "uv run qqcode",
+          "description": "Path to QQCode CLI executable (use 'uv run qqcode' for local development)"
         },
         "qqcode.autoApprove": {
           "type": "boolean",
