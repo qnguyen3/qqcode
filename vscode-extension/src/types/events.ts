@@ -58,3 +58,36 @@ export type StreamChunk =
     | { kind: 'tool_result'; toolCallId: string; toolName: string; result: string; isError: boolean }
     | { kind: 'thinking'; text: string }
     | { kind: 'error'; message: string };
+
+export interface SessionSummary {
+    session_id: string;
+    end_time: string;
+    last_user_message: string;
+}
+
+export interface SessionData {
+    metadata: Record<string, any>;
+    messages: Array<{
+        role: string;
+        content: string | null;
+        reasoning_content?: string | null;
+        tool_calls?: Array<any>;
+        name?: string | null;
+        tool_call_id?: string | null;
+    }>;
+}
+
+export interface ModelInfo {
+    alias: string;
+    name: string;
+    provider: string;
+    context_limit?: number;
+    input_price?: number;
+    output_price?: number;
+    extra_body?: Record<string, any>;
+}
+
+export interface ModelGroup {
+    provider: string;
+    models: ModelInfo[];
+}

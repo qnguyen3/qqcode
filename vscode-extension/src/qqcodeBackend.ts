@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { QQCodeEvent, StreamChunk } from './types/events';
+import { QQCodeEvent, StreamChunk, SessionSummary, SessionData, ModelInfo } from './types/events';
 
 export class QQCodeBackend {
     private commandPath: string;
@@ -23,11 +23,134 @@ export class QQCodeBackend {
     }
 
     /**
+     * Helper to run a non-streaming command and capture output
+     */
+    private async runCommand(args: string[]): Promise<string> {
+        return new Promise((resolve, reject) => {
+            // Determine working directory for the command
+            let cwd = this.workspaceRoot;
+            if (this.commandPath.includes('uv run')) {
+                if (fs.existsSync(path.join(this.workspaceRoot, 'pyproject.toml'))) {
+                    cwd = this.workspaceRoot;
+                } else {
+                    this.outputChannel.appendLine('[Warning] Using "uv run qqcode" but not in qqcode project directory');
+                }
+            }
+
+            // Parse command and build args
+            let command: string;
+            let commandArgs: string[];
+
+            if (this.commandPath === 'uv run qqcode') {
+                command = 'uv';
+                commandArgs = ['run', 'qqcode', ...args];
+            } else if (this.commandPath.startsWith('uv run ')) {
+                const parts = this.commandPath.split(' ');
+                command = parts[0];
+                commandArgs = parts.slice(1).concat(args);
+            } else {
+                command = this.commandPath;
+                commandArgs = args;
+            }
+
+            const spawnOptions = {
+                cwd: cwd,
+                env: process.env,
+            };
+
+            this.outputChannel.appendLine(`[QQCode] Running command: ${command} ${commandArgs.join(' ')}`);
+
+            const proc = spawn(command, commandArgs, spawnOptions);
+            let output = '';
+            let errorOutput = '';
+
+            proc.stdout?.on('data', (data) => {
+                output += data.toString();
+            });
+
+            proc.stderr?.on('data', (data) => {
+                const text = data.toString();
+                errorOutput += text;
+                this.outputChannel.appendLine(`[QQCode stderr] ${text}`);
+            });
+
+            proc.on('exit', (code) => {
+                if (code === 0) {
+                    resolve(output);
+                } else {
+                    const error = errorOutput || `Command exited with code ${code}`;
+                    reject(new Error(error));
+                }
+            });
+
+            proc.on('error', (error) => {
+                reject(error);
+            });
+        });
+    }
+
+    /**
+     * List available sessions
+     */
+    async listSessions(): Promise<SessionSummary[]> {
+        try {
+            const result = await this.runCommand(['--list-sessions']);
+            return JSON.parse(result);
+        } catch (error) {
+            this.outputChannel.appendLine(`[QQCode] Failed to list sessions: ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get session data by ID
+     */
+    async getSession(sessionId: string): Promise<SessionData | null> {
+        try {
+            const result = await this.runCommand(['--get-session', sessionId]);
+            return JSON.parse(result);
+        } catch (error) {
+            this.outputChannel.appendLine(`[QQCode] Failed to get session: ${error}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get current active model
+     */
+    async getCurrentModel(): Promise<string> {
+        try {
+            const result = await this.runCommand(['--get-model']);
+            const data = JSON.parse(result);
+            return data.current_model || '';
+        } catch (error) {
+            this.outputChannel.appendLine(`[QQCode] Failed to get current model: ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * List all available models
+     */
+    async listModels(): Promise<ModelInfo[]> {
+        try {
+            const result = await this.runCommand(['--list-models']);
+            const data = JSON.parse(result);
+            return data.models || [];
+        } catch (error) {
+            this.outputChannel.appendLine(`[QQCode] Failed to list models: ${error}`);
+            throw error;
+        }
+    }
+
+    /**
      * Stream prompt to QQCode CLI and yield parsed events
      */
     async *streamPrompt(
         prompt: string,
-        autoApprove: boolean = false
+        autoApprove: boolean = false,
+        sessionId?: string,
+        modelAlias?: string
     ): AsyncGenerator<StreamChunk> {
         // Build context file
         const contextPath = this.buildContextFile();
@@ -58,6 +181,16 @@ export class QQCodeBackend {
         } else {
             command = this.commandPath;
             args = ['--prompt', prompt, '--output', 'vscode'];
+        }
+
+        // Add session ID if provided
+        if (sessionId) {
+            args.push('--resume', sessionId);
+        }
+
+        // Add model alias if provided
+        if (modelAlias) {
+            args.push('--model', modelAlias);
         }
 
         if (autoApprove) {

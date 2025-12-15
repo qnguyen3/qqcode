@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { QQCodeBackend } from './qqcodeBackend';
-import { StreamChunk } from './types/events';
+import { StreamChunk, SessionSummary, SessionData, ModelInfo } from './types/events';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'qqcodeChatView';
@@ -8,12 +8,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private backend: QQCodeBackend;
     private messageHistory: Array<{role: string; content: string}> = [];
+    private currentSessionId: string | null = null;
+    private availableSessions: SessionSummary[] = [];
+    private currentModel: string | null = null;
+    private availableModels: ModelInfo[] = [];
+    private extensionContext: vscode.ExtensionContext;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
-        backend: QQCodeBackend
+        backend: QQCodeBackend,
+        extensionContext: vscode.ExtensionContext
     ) {
         this.backend = backend;
+        this.extensionContext = extensionContext;
     }
 
     resolveWebviewView(
@@ -39,8 +46,32 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 case 'cancelRequest':
                     this.backend.cancel();
                     break;
+                case 'newConversation':
+                    await this.switchToSession(null);
+                    break;
+                case 'selectSession':
+                    await this.switchToSession(data.sessionId);
+                    break;
+                case 'refreshSessions':
+                    await this.refreshSessionsList();
+                    break;
+                case 'selectModel':
+                    await this.switchModel(data.modelAlias);
+                    break;
             }
         });
+
+        // Load sessions on startup
+        this.refreshSessionsList();
+
+        // Load models on startup
+        this.refreshModelsList();
+
+        // Restore saved model selection (global setting)
+        const savedModel = this.extensionContext.globalState.get<string>('qqcode.selectedModel');
+        if (savedModel) {
+            this.switchModel(savedModel);
+        }
     }
 
     private async handleUserMessage(text: string) {
@@ -55,7 +86,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const config = vscode.workspace.getConfiguration('qqcode');
             const autoApprove = config.get<boolean>('autoApprove', false);
 
-            for await (const chunk of this.backend.streamPrompt(text, autoApprove)) {
+            for await (const chunk of this.backend.streamPrompt(text, autoApprove, this.currentSessionId, this.currentModel || undefined)) {
                 if (chunk.kind === 'text') {
                     assistantMessage += chunk.text;
                     this.updateAssistantMessage(chunk.accumulated);
@@ -70,6 +101,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
             this.messageHistory.push({ role: 'assistant', content: assistantMessage });
             this.finalizeAssistantMessage();
+
+            // Refresh sessions list after completing response
+            await this.refreshSessionsList();
         } catch (error) {
             this.showError(`Error: ${error}`);
         }
@@ -120,6 +154,108 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    /**
+     * Load and update conversation list
+     */
+    private async refreshSessionsList(): Promise<void> {
+        try {
+            this.availableSessions = await this.backend.listSessions();
+            this.sendToWebview({
+                type: 'updateSessionsList',
+                sessions: this.availableSessions
+            });
+        } catch (error) {
+            console.error('Failed to load sessions:', error);
+            // Hide conversation controls if session management is disabled
+            this.sendToWebview({
+                type: 'hideConversationControls',
+                reason: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Switch to a different conversation
+     */
+    private async switchToSession(sessionId: string | null): Promise<void> {
+        this.currentSessionId = sessionId;
+
+        // Clear current UI
+        this.sendToWebview({ type: 'clearMessages' });
+        this.messageHistory = [];
+
+        if (sessionId) {
+            // Load session history
+            const sessionData = await this.backend.getSession(sessionId);
+            if (sessionData) {
+                // Populate UI with history
+                for (const msg of sessionData.messages) {
+                    if (msg.role === 'user' || msg.role === 'assistant') {
+                        if (msg.content) {
+                            this.addMessageToUI(msg.role, msg.content);
+                            this.messageHistory.push({ role: msg.role, content: msg.content });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update UI to show current session
+        this.sendToWebview({
+            type: 'updateCurrentSession',
+            sessionId: this.currentSessionId
+        });
+    }
+
+    /**
+     * Load and update model list
+     */
+    private async refreshModelsList(): Promise<void> {
+        try {
+            this.availableModels = await this.backend.listModels();
+            this.sendToWebview({
+                type: 'updateModelsList',
+                models: this.availableModels
+            });
+
+            // Get current model
+            this.currentModel = await this.backend.getCurrentModel();
+            this.sendToWebview({
+                type: 'updateCurrentModel',
+                modelAlias: this.currentModel
+            });
+        } catch (error) {
+            console.error('Failed to load models:', error);
+            this.sendToWebview({
+                type: 'hideModelControls',
+                reason: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Switch to a different model
+     */
+    private async switchModel(modelAlias: string): Promise<void> {
+        this.currentModel = modelAlias;
+
+        // Persist in global VSCode state (not workspace-specific)
+        this.extensionContext.globalState.update('qqcode.selectedModel', modelAlias);
+
+        // Update UI
+        this.sendToWebview({
+            type: 'updateCurrentModel',
+            modelAlias: modelAlias
+        });
+    }
+
+    /**
+     * Send message to webview
+     */
+    private sendToWebview(message: any): void {
+        this.view?.webview.postMessage(message);
+    }
+
     private getHtmlContent(webview: vscode.Webview): string {
         return `<!DOCTYPE html>
         <html lang="en">
@@ -132,6 +268,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             </style>
         </head>
         <body>
+            <div id="model-controls" style="display: none;">
+                <select id="model-selector">
+                    <option value="">Loading models...</option>
+                </select>
+            </div>
+            <div id="conversation-controls" style="display: none;">
+                <div class="conversation-header">
+                    <select id="session-selector">
+                        <option value="">New Conversation</option>
+                    </select>
+                    <button id="new-conversation-btn" title="Start New Conversation">+</button>
+                    <button id="refresh-sessions-btn" title="Refresh">⟳</button>
+                </div>
+                <div id="current-session-badge" style="display: none;">
+                    Session: <span id="session-id-display"></span>
+                </div>
+            </div>
             <div id="chat-container">
                 <div id="messages"></div>
             </div>
@@ -162,6 +315,79 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 font-size: var(--vscode-font-size);
                 background-color: var(--vscode-editor-background);
                 color: var(--vscode-editor-foreground);
+            }
+
+            #model-controls {
+                padding: 4px 0;
+            }
+
+            #model-selector {
+                width: 100%;
+                padding: 4px 8px;
+                background-color: var(--vscode-dropdown-background);
+                color: var(--vscode-dropdown-foreground);
+                border: 1px solid var(--vscode-dropdown-border);
+                border-radius: 4px;
+                font-family: var(--vscode-font-family);
+                font-size: var(--vscode-font-size);
+            }
+
+            #model-selector:focus {
+                outline: 1px solid var(--vscode-focusBorder);
+                outline-offset: -1px;
+            }
+
+            #conversation-controls {
+                padding: 8px 12px;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                background-color: var(--vscode-editor-background);
+            }
+
+            .conversation-header {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
+            #session-selector {
+                flex: 1;
+                padding: 6px 10px;
+                background-color: var(--vscode-input-background);
+                color: var(--vscode-input-foreground);
+                border: 1px solid var(--vscode-input-border);
+                border-radius: 4px;
+                font-family: var(--vscode-font-family);
+                font-size: var(--vscode-font-size);
+            }
+
+            #session-selector:focus {
+                outline: 1px solid var(--vscode-focusBorder);
+                outline-offset: -1px;
+            }
+
+            #new-conversation-btn, #refresh-sessions-btn {
+                padding: 6px 12px;
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-family: var(--vscode-font-family);
+                font-size: var(--vscode-font-size);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 36px;
+            }
+
+            #new-conversation-btn:hover, #refresh-sessions-btn:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+
+            #current-session-badge {
+                font-size: 0.85em;
+                color: var(--vscode-descriptionForeground);
+                margin-top: 4px;
             }
 
             #chat-container {
@@ -302,8 +528,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const messagesDiv = document.getElementById('messages');
             const userInput = document.getElementById('user-input');
             const sendBtn = document.getElementById('send-btn');
+            const modelSelector = document.getElementById('model-selector');
+            const modelControls = document.getElementById('model-controls');
+            const sessionSelector = document.getElementById('session-selector');
+            const newConversationBtn = document.getElementById('new-conversation-btn');
+            const refreshSessionsBtn = document.getElementById('refresh-sessions-btn');
+            const conversationControls = document.getElementById('conversation-controls');
+            const currentSessionBadge = document.getElementById('current-session-badge');
+            const sessionIdDisplay = document.getElementById('session-id-display');
 
             let currentAssistantMessage = null;
+
+            // Model selector event listener
+            modelSelector.addEventListener('change', (e) => {
+                const modelAlias = e.target.value;
+                if (modelAlias) {
+                    vscode.postMessage({
+                        type: 'selectModel',
+                        modelAlias: modelAlias
+                    });
+                }
+            });
+
+            // Conversation controls event listeners
+            sessionSelector.addEventListener('change', (e) => {
+                const sessionId = e.target.value;
+                vscode.postMessage({
+                    type: 'selectSession',
+                    sessionId: sessionId || null
+                });
+            });
+
+            newConversationBtn.addEventListener('click', () => {
+                vscode.postMessage({ type: 'newConversation' });
+            });
+
+            refreshSessionsBtn.addEventListener('click', () => {
+                vscode.postMessage({ type: 'refreshSessions' });
+            });
 
             sendBtn.addEventListener('click', sendMessage);
             userInput.addEventListener('keydown', (e) => {
@@ -353,6 +615,32 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         break;
                     case 'error':
                         showError(message.message);
+                        break;
+                    case 'updateSessionsList':
+                        updateSessionsDropdown(message.sessions);
+                        conversationControls.style.display = 'block';
+                        break;
+                    case 'updateCurrentSession':
+                        updateCurrentSessionBadge(message.sessionId);
+                        break;
+                    case 'clearMessages':
+                        messagesDiv.innerHTML = '';
+                        currentAssistantMessage = null;
+                        break;
+                    case 'hideConversationControls':
+                        conversationControls.style.display = 'none';
+                        showError('Session management disabled: ' + message.reason);
+                        break;
+                    case 'updateModelsList':
+                        updateModelsDropdown(message.models);
+                        modelControls.style.display = 'block';
+                        break;
+                    case 'updateCurrentModel':
+                        modelSelector.value = message.modelAlias || '';
+                        break;
+                    case 'hideModelControls':
+                        modelControls.style.display = 'none';
+                        showError('Model loading failed: ' + message.reason);
                         break;
                 }
             });
@@ -425,6 +713,76 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             function scrollToBottom() {
                 const container = document.getElementById('chat-container');
                 container.scrollTop = container.scrollHeight;
+            }
+
+            function updateSessionsDropdown(sessions) {
+                // Keep "New Conversation" option
+                sessionSelector.innerHTML = '<option value="">New Conversation</option>';
+
+                sessions.forEach(session => {
+                    const option = document.createElement('option');
+                    option.value = session.session_id;
+
+                    // Format: "Preview text... (Dec 15, 10:30)"
+                    const preview = session.last_user_message.substring(0, 40);
+                    const date = new Date(session.end_time);
+                    const timeStr = date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    option.textContent = preview + '... (' + timeStr + ')';
+                    sessionSelector.appendChild(option);
+                });
+            }
+
+            function updateCurrentSessionBadge(sessionId) {
+                if (sessionId) {
+                    currentSessionBadge.style.display = 'block';
+                    sessionIdDisplay.textContent = sessionId;
+                    sessionSelector.value = sessionId;
+                } else {
+                    currentSessionBadge.style.display = 'none';
+                    sessionSelector.value = '';
+                }
+            }
+
+            function updateModelsDropdown(models) {
+                // Group models by provider
+                const providers = {};
+                models.forEach(model => {
+                    if (!providers[model.provider]) {
+                        providers[model.provider] = [];
+                    }
+                    providers[model.provider].push(model);
+                });
+
+                // Clear existing options
+                modelSelector.innerHTML = '';
+
+                // Add models grouped by provider
+                Object.keys(providers).sort().forEach(provider => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = provider.charAt(0).toUpperCase() + provider.slice(1);
+
+                    providers[provider].forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.alias;
+
+                        // Display name with special mode indicator
+                        let displayName = model.alias;
+                        if (model.alias.includes(':thinking')) {
+                            displayName = model.alias.replace(':thinking', ' (Thinking)');
+                        }
+
+                        option.textContent = displayName;
+                        optgroup.appendChild(option);
+                    });
+
+                    modelSelector.appendChild(optgroup);
+                });
             }
 
             // Focus input on load

@@ -22,7 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine(`Workspace root: ${workspaceRoot}`);
 
     // Register chat view provider
-    const chatProvider = new ChatViewProvider(context.extensionUri, backend);
+    const chatProvider = new ChatViewProvider(context.extensionUri, backend, context);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             ChatViewProvider.viewType,
