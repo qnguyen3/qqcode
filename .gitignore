@@ -204,3 +204,6 @@ tests/playground/*
 
 # Documentation files in .github (generated/maintained separately)
 .github/*.md
+
+# Local planning files
+plan/
