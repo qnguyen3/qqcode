@@ -29,10 +29,6 @@
     let isStreaming = false;
     let toolCallMap = new Map();
 
-    // Track text segments between tool calls
-    let segmentOffset = 0;
-    let lastAccumulatedLen = 0;
-
     // UI State
     let uiState = {
         modelControlsVisible: false,
@@ -329,19 +325,19 @@
     }
 
     function updateCurrentAssistantMessage(content) {
-        lastAccumulatedLen = content.length;
+        if (!content) {
+            return;
+        }
 
+        // Create new bubble if needed (e.g., after a tool call)
         if (!currentAssistantMessage) {
             currentAssistantMessage = document.createElement('div');
-            currentAssistantMessage.className = 'message assistant';
+            currentAssistantMessage.className = 'message assistant streaming';
             messagesDiv.appendChild(currentAssistantMessage);
         }
 
-        // Only show content from current segment (after last tool call)
-        const segmentContent = content.substring(segmentOffset);
-        if (segmentContent) {
-            currentAssistantMessage.innerHTML = formatMessageContent(segmentContent, 'assistant');
-        }
+        // Content is already per-turn from backend, just show it directly
+        currentAssistantMessage.innerHTML = formatMessageContent(content, 'assistant');
         scrollToBottom();
     }
 
@@ -350,16 +346,16 @@
             currentAssistantMessage.classList.remove('streaming');
         }
         currentAssistantMessage = null;
-        segmentOffset = 0;
-        lastAccumulatedLen = 0;
         setStreamingState(false);
         toolCallMap.clear();
     }
 
     function showToolCall(toolName, toolCallId, args) {
-        // End current text segment - next text will be in a new div
+        // Finalize current text bubble - next turn's text will be in a new bubble
+        if (currentAssistantMessage) {
+            currentAssistantMessage.classList.remove('streaming');
+        }
         currentAssistantMessage = null;
-        segmentOffset = lastAccumulatedLen;
 
         const toolDiv = document.createElement('div');
         toolDiv.className = 'tool-call';
@@ -504,6 +500,7 @@
         errorDiv.innerHTML = `<span>${escapeHtml(message)}</span>`;
         messagesDiv.appendChild(errorDiv);
         scrollToBottom();
+        currentAssistantMessage = null;
     }
 
     function clearMessages() {
@@ -511,8 +508,6 @@
         currentAssistantMessage = null;
         currentThinkingElement = null;
         toolCallMap.clear();
-        segmentOffset = 0;
-        lastAccumulatedLen = 0;
         setStreamingState(false);
     }
 
