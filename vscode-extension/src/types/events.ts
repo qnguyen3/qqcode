@@ -9,6 +9,7 @@ export type QQCodeEventType =
     | 'tool.call'
     | 'tool.result'
     | 'tool.approval_required'
+    | 'plan.approval_required'
     | 'thinking.started'
     | 'thinking.updated'
     | 'thinking.completed'
@@ -41,6 +42,9 @@ export interface QQCodeEvent {
     skip_reason?: string | null;
     duration?: number | null;
 
+    // plan.approval_required
+    plan?: string;
+
     // turn.completed
     finish_reason?: string;
     usage?: {
@@ -58,6 +62,7 @@ export type StreamChunk =
     | { kind: 'tool_call'; toolName: string; toolCallId: string; args: any }
     | { kind: 'tool_result'; toolCallId: string; toolName: string; result: string; isError: boolean }
     | { kind: 'tool_approval_required'; toolName: string; toolCallId: string; args: any }
+    | { kind: 'plan_approval_required'; plan: string }
     | { kind: 'thinking'; text: string }
     | { kind: 'error'; message: string }
     | { kind: 'session_started'; sessionId: string };

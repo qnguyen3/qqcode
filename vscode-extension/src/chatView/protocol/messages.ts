@@ -107,6 +107,18 @@ export type UpdateCurrentModePayload = {
     mode: ExecutionMode;
 };
 
+export type PlanApprovalRequiredPayload = {
+    type: 'planApprovalRequired';
+    plan: string;
+};
+
+export type PlanApprovalCompletePayload = {
+    type: 'planApprovalComplete';
+    approved: boolean;
+    mode?: ExecutionMode;
+    feedback?: string;
+};
+
 /**
  * All possible messages sent from extension to webview
  */
@@ -128,7 +140,9 @@ export type ExtensionToWebviewMessage =
     | UpdateCurrentModelPayload
     | HideModelControlsPayload
     | SetLoadingPayload
-    | UpdateCurrentModePayload;
+    | UpdateCurrentModePayload
+    | PlanApprovalRequiredPayload
+    | PlanApprovalCompletePayload;
 
 // =====================
 // Webview → Extension Messages
@@ -176,6 +190,13 @@ export type ApproveToolCallMessage = {
     approved: boolean;
 };
 
+export type PlanApprovalResponseMessage = {
+    type: 'planApprovalResponse';
+    approved: boolean;
+    mode?: ExecutionMode;
+    feedback?: string;
+};
+
 /**
  * All possible messages sent from webview to extension
  */
@@ -188,7 +209,8 @@ export type WebviewToExtensionMessage =
     | RefreshSessionsMessage
     | SelectModelMessage
     | SelectModeMessage
-    | ApproveToolCallMessage;
+    | ApproveToolCallMessage
+    | PlanApprovalResponseMessage;
 
 // =====================
 // Type Guards

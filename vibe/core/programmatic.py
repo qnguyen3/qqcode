@@ -87,6 +87,60 @@ def _create_stdin_approval_callback(
     return approval_callback
 
 
+def _create_stdin_plan_approval_callback(
+    formatter: VScodeJsonFormatter,
+) -> Callable[[str], Awaitable[tuple[bool, str | None]]]:
+    """Create a plan approval callback that uses stdin/stdout for communication.
+
+    This callback:
+    1. Emits a plan.approval_required event to stdout
+    2. Waits for a JSON response on stdin
+    3. Returns the approval decision to the agent
+
+    Expected stdin format:
+    {"approved": true/false, "mode": "auto-approve"/"interactive", "feedback": "optional"}
+    """
+
+    async def plan_approval_callback(plan: str) -> tuple[bool, str | None]:
+        # Emit plan_approval_required event to stdout
+        formatter._emit_event(
+            StreamEventType.PLAN_APPROVAL_REQUIRED,
+            {
+                "plan": plan,
+            },
+        )
+
+        # Read response from stdin (blocking, run in executor to avoid blocking event loop)
+        loop = asyncio.get_event_loop()
+        response_line = await loop.run_in_executor(None, sys.stdin.readline)
+        response_line = response_line.strip()
+
+        if not response_line:
+            # Empty response = rejection (e.g., stdin closed)
+            return (False, "No response received from stdin")
+
+        try:
+            response = json.loads(response_line)
+        except json.JSONDecodeError:
+            return (False, f"Invalid JSON response: {response_line}")
+
+        # Parse response
+        approved = response.get("approved", False)
+        mode = response.get("mode")
+        feedback = response.get("feedback")
+
+        if approved:
+            # Convert mode string to AgentMode if provided
+            if mode:
+                return (True, mode)
+            else:
+                return (True, None)
+        else:
+            return (False, feedback or "User rejected the plan")
+
+    return plan_approval_callback
+
+
 def run_programmatic(
     config: VibeConfig,
     prompt: str,
@@ -132,6 +186,10 @@ def run_programmatic(
     # Set up approval callback for interactive mode
     if mode == "interactive" and isinstance(formatter, VScodeJsonFormatter):
         agent.set_approval_callback(_create_stdin_approval_callback(formatter))
+
+    # Always set plan approval callback for VSCode output format
+    if isinstance(formatter, VScodeJsonFormatter):
+        agent.plan_approval_callback = _create_stdin_plan_approval_callback(formatter)
 
     # Now set the message observer
     agent.message_observer = formatter.on_message_added

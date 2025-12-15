@@ -19,6 +19,10 @@ QQcode is a command-line coding assistant powered by AI models. It provides a co
 
 Support: MacOS, Linux, Windows (Experimental).
 
+## Acknowledgement
+
+QQcode is a fork of [Mistral Vibe](https://github.com/mistralai/mistral-vibe), the original CLI coding assistant developed by Mistral AI.
+
 ### One-line install (recommended)
 
 **Linux and macOS**

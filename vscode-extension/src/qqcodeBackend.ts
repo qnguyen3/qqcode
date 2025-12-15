@@ -161,6 +161,23 @@ export class QQCodeBackend {
     }
 
     /**
+     * Send plan approval response to the running process via stdin
+     */
+    sendPlanApprovalResponse(approved: boolean, mode?: string, feedback?: string): void {
+        if (this.currentProcess?.stdin) {
+            const response = JSON.stringify({
+                approved,
+                mode,
+                feedback
+            });
+            this.outputChannel.appendLine(`[QQCode] Sending plan approval response: ${response}`);
+            this.currentProcess.stdin.write(response + '\n');
+        } else {
+            this.outputChannel.appendLine('[QQCode] Cannot send plan approval - no stdin available');
+        }
+    }
+
+    /**
      * Stream prompt to QQCode CLI and yield parsed events
      */
     async *streamPrompt(
@@ -391,6 +408,12 @@ export class QQCodeBackend {
                     toolName: event.tool_name!,
                     toolCallId: event.tool_call_id!,
                     args: event.args || {}
+                };
+
+            case 'plan.approval_required':
+                return {
+                    kind: 'plan_approval_required',
+                    plan: event.plan || ''
                 };
 
             case 'thinking.updated':

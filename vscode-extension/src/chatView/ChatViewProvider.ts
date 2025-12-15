@@ -22,6 +22,7 @@ interface ChatState {
     isStreaming: boolean;
     accumulatedThinking: string;
     pendingApproval: { toolCallId: string; toolName: string; args: unknown } | null;
+    pendingPlanApproval: { plan: string } | null;
 }
 
 /**
@@ -50,7 +51,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         availableModels: [],
         isStreaming: false,
         accumulatedThinking: '',
-        pendingApproval: null
+        pendingApproval: null,
+        pendingPlanApproval: null
     };
 
     // Webview communication
@@ -184,6 +186,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 );
                 this.state.pendingApproval = null;
                 break;
+
+            case 'planApprovalResponse':
+                // Handle plan approval response
+                this.handlePlanApprovalResponse(message.approved, message.mode, message.feedback);
+                this.state.pendingPlanApproval = null;
+                break;
         }
     }
 
@@ -303,6 +311,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                         });
                         break;
 
+                    case 'plan_approval_required':
+                        // Store pending plan approval and show UI
+                        this.state.pendingPlanApproval = {
+                            plan: chunk.plan || ''
+                        };
+                        this.sendToWebview({
+                            type: 'planApprovalRequired',
+                            plan: chunk.plan || ''
+                        });
+                        break;
+
                     case 'thinking':
                         this.state.accumulatedThinking += chunk.text;
                         this.sendToWebview({
@@ -358,6 +377,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.sendToWebview({
             type: 'updateCurrentSession',
             sessionId: this.state.currentSessionId
+        });
+    }
+
+    private handlePlanApprovalResponse(approved: boolean, mode?: ExecutionMode, feedback?: string): void {
+        // Send plan approval response to backend
+        this.backend.sendPlanApprovalResponse(approved, mode, feedback);
+        
+        // Notify the webview that the plan approval is complete
+        this.sendToWebview({
+            type: 'planApprovalComplete',
+            approved,
+            mode,
+            feedback
         });
     }
 

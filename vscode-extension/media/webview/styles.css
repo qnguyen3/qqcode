@@ -369,3 +369,143 @@ body {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* Plan Approval UI */
+.plan-approval {
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    background-color: var(--vscode-editor-background);
+}
+
+.plan-approval-header {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 12px;
+    color: var(--vscode-foreground);
+}
+
+.plan-content-container {
+    margin-bottom: 16px;
+}
+
+.plan-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: var(--vscode-foreground);
+}
+
+.plan-content {
+    padding: 12px;
+    background-color: var(--vscode-textBlockQuote-background);
+    border-left: 4px solid var(--vscode-textBlockQuote-border);
+    border-radius: 0 4px 4px 0;
+    white-space: pre-wrap;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    color: var(--vscode-textBlockQuote-foreground);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.plan-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.plan-option {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.plan-option-button {
+    padding: 8px 12px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    transition: background-color 0.2s;
+}
+
+.plan-option-button:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.plan-option-button:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.plan-option-description {
+    font-size: 0.9em;
+    color: var(--vscode-descriptionForeground);
+    margin-left: 8px;
+}
+
+.revision-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.revision-input {
+    width: 100%;
+    min-height: 80px;
+    padding: 8px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    resize: vertical;
+}
+
+.revision-input:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.revision-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.revision-submit-btn {
+    padding: 6px 12px;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+}
+
+.revision-submit-btn:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.revision-cancel-btn {
+    padding: 6px 12px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+}
+
+.revision-cancel-btn:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}

@@ -34,7 +34,8 @@
         conversationControlsVisible: false,
         currentSessionId: null,
         currentModel: null,
-        currentMode: 'plan'  // Default mode
+        currentMode: 'plan',  // Default mode
+        pendingPlanApproval: null
     };
 
     // =====================
@@ -180,6 +181,12 @@
                 break;
             case 'toolApprovalRequired':
                 showToolApproval(message.toolName, message.toolCallId, message.args);
+                break;
+            case 'planApprovalRequired':
+                showPlanApproval(message.plan);
+                break;
+            case 'planApprovalComplete':
+                hidePlanApproval();
                 break;
             case 'thinkingUpdate':
                 updateThinking(message.content);
@@ -537,6 +544,222 @@
             return JSON.stringify(args, null, 2);
         } catch {
             return String(args);
+        }
+    }
+
+    // =====================
+    // Plan Approval UI
+    // =====================
+
+    function showPlanApproval(plan) {
+        // Store the plan for later use
+        uiState.pendingPlanApproval = plan;
+        saveState();
+
+        // Create plan approval container
+        const approvalDiv = document.createElement('div');
+        approvalDiv.className = 'plan-approval';
+        approvalDiv.id = 'plan-approval-container';
+
+        // Create header
+        const header = document.createElement('div');
+        header.className = 'plan-approval-header';
+        header.textContent = '📋 Plan Ready for Review';
+
+        // Create plan content container
+        const planContainer = document.createElement('div');
+        planContainer.className = 'plan-content-container';
+
+        // Add plan title
+        const planTitle = document.createElement('div');
+        planTitle.className = 'plan-title';
+        planTitle.textContent = 'Review the plan below:';
+
+        // Add plan content
+        const planContent = document.createElement('div');
+        planContent.className = 'plan-content';
+        planContent.textContent = plan;
+
+        // Create options container
+        const optionsContainer = document.createElement('div');
+        optionsContainer.className = 'plan-options-container';
+
+        // Create option buttons
+        const options = [
+            { id: 'auto', text: 'Execute with Auto-Approve', description: 'Run the plan automatically' },
+            { id: 'manual', text: 'Execute with Manual Approval', description: 'Review each step' },
+            { id: 'revise', text: 'Revise Plan', description: 'Give feedback to improve the plan' }
+        ];
+
+        options.forEach((option, index) => {
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'plan-option';
+            optionDiv.dataset.option = option.id;
+
+            const optionButton = document.createElement('button');
+            optionButton.className = 'plan-option-button';
+            optionButton.textContent = `${index + 1}. ${option.text}`;
+            optionButton.onclick = () => handlePlanOptionSelect(option.id);
+
+            const optionDesc = document.createElement('div');
+            optionDesc.className = 'plan-option-description';
+            optionDesc.textContent = option.description;
+
+            optionDiv.appendChild(optionButton);
+            optionDiv.appendChild(optionDesc);
+            optionsContainer.appendChild(optionDiv);
+        });
+
+        // Create revision input (hidden by default)
+        const revisionContainer = document.createElement('div');
+        revisionContainer.className = 'revision-container';
+        revisionContainer.style.display = 'none';
+
+        const revisionInput = document.createElement('textarea');
+        revisionInput.className = 'revision-input';
+        revisionInput.placeholder = 'Type your revision feedback and press Enter...';
+        revisionInput.id = 'revision-input';
+
+        const revisionButtons = document.createElement('div');
+        revisionButtons.className = 'revision-buttons';
+
+        const submitRevisionBtn = document.createElement('button');
+        submitRevisionBtn.className = 'revision-submit-btn';
+        submitRevisionBtn.textContent = 'Submit Revision';
+        submitRevisionBtn.onclick = () => submitRevision();
+
+        const cancelRevisionBtn = document.createElement('button');
+        cancelRevisionBtn.className = 'revision-cancel-btn';
+        cancelRevisionBtn.textContent = 'Cancel';
+        cancelRevisionBtn.onclick = () => cancelRevision();
+
+        revisionButtons.appendChild(submitRevisionBtn);
+        revisionButtons.appendChild(cancelRevisionBtn);
+
+        revisionContainer.appendChild(revisionInput);
+        revisionContainer.appendChild(revisionButtons);
+
+        // Assemble the approval UI
+        planContainer.appendChild(planTitle);
+        planContainer.appendChild(planContent);
+
+        approvalDiv.appendChild(header);
+        approvalDiv.appendChild(planContainer);
+        approvalDiv.appendChild(optionsContainer);
+        approvalDiv.appendChild(revisionContainer);
+
+        // Add to messages
+        messagesDiv.appendChild(approvalDiv);
+        scrollToBottom();
+
+        // Set up keyboard shortcuts
+        document.addEventListener('keydown', handlePlanApprovalKeydown);
+    }
+
+    function hidePlanApproval() {
+        const approvalDiv = document.getElementById('plan-approval-container');
+        if (approvalDiv) {
+            approvalDiv.remove();
+        }
+
+        // Clear pending plan approval
+        uiState.pendingPlanApproval = null;
+        saveState();
+
+        // Remove keyboard shortcuts
+        document.removeEventListener('keydown', handlePlanApprovalKeydown);
+    }
+
+    function handlePlanOptionSelect(optionId) {
+        switch (optionId) {
+            case 'auto':
+                sendPlanApprovalResponse(true, 'auto-approve');
+                break;
+            case 'manual':
+                sendPlanApprovalResponse(true, 'interactive');
+                break;
+            case 'revise':
+                showRevisionInput();
+                break;
+        }
+    }
+
+    function showRevisionInput() {
+        const optionsContainer = document.querySelector('.plan-options-container');
+        const revisionContainer = document.querySelector('.revision-container');
+
+        if (optionsContainer) {
+            optionsContainer.style.display = 'none';
+        }
+
+        if (revisionContainer) {
+            revisionContainer.style.display = 'block';
+            document.getElementById('revision-input').focus();
+        }
+    }
+
+    function cancelRevision() {
+        const optionsContainer = document.querySelector('.plan-options-container');
+        const revisionContainer = document.querySelector('.revision-container');
+
+        if (optionsContainer) {
+            optionsContainer.style.display = 'flex';
+        }
+
+        if (revisionContainer) {
+            revisionContainer.style.display = 'none';
+            document.getElementById('revision-input').value = '';
+        }
+    }
+
+    function submitRevision() {
+        const revisionInput = document.getElementById('revision-input');
+        const feedback = revisionInput.value.trim();
+
+        if (feedback) {
+            sendPlanApprovalResponse(false, undefined, feedback);
+        }
+    }
+
+    function sendPlanApprovalResponse(approved, mode, feedback) {
+        vscode.postMessage({
+            type: 'planApprovalResponse',
+            approved,
+            mode,
+            feedback
+        });
+    }
+
+    function handlePlanApprovalKeydown(event) {
+        // Handle keyboard shortcuts for plan approval
+        if (event.target.tagName === 'TEXTAREA' && event.target.id === 'revision-input') {
+            // In revision input mode
+            if (event.key === 'Enter' && event.ctrlKey) {
+                event.preventDefault();
+                submitRevision();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelRevision();
+            }
+            return;
+        }
+
+        // Global shortcuts
+        switch (event.key) {
+            case '1':
+                event.preventDefault();
+                handlePlanOptionSelect('auto');
+                break;
+            case '2':
+                event.preventDefault();
+                handlePlanOptionSelect('manual');
+                break;
+            case '3':
+            case 'r':
+            case 'R':
+                event.preventDefault();
+                handlePlanOptionSelect('revise');
+                break;
         }
     }
 
