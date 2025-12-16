@@ -4,6 +4,7 @@ import asyncio
 from enum import StrEnum, auto
 import os
 import subprocess
+from pathlib import Path
 from typing import Any, ClassVar, assert_never
 
 from textual.app import App, ComposeResult
@@ -99,6 +100,7 @@ class VibeApp(App):
         session_info: ResumeSessionInfo | None = None,
         version_update_notifier: VersionUpdateGateway | None = None,
         current_version: str = CORE_VERSION,
+        additional_directory_contexts: list[Path] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -142,6 +144,7 @@ class VibeApp(App):
         self._initial_prompt = initial_prompt
         self._loaded_messages = loaded_messages
         self._session_info = session_info
+        self._additional_directory_contexts = additional_directory_contexts
         self._agent_init_task: asyncio.Task | None = None
         # prevent a race condition where the agent initialization
         # completes exactly at the moment the user interrupts
@@ -368,6 +371,21 @@ class VibeApp(App):
                 # Reset agent messages to just system prompt, then add loaded
                 self.agent.messages = self.agent.messages[:1]
                 self.agent.messages.extend(non_system_messages)
+                
+                # Restore additional directory contexts if they exist in the metadata
+                additional_contexts = metadata.get("additional_directory_contexts", [])
+                if additional_contexts:
+                    for context_path_str in additional_contexts:
+                        try:
+                            context_path = Path(context_path_str)
+                            if context_path.exists() and context_path.is_dir():
+                                self.agent.add_additional_directory_context(context_path)
+                        except Exception:
+                            # Skip invalid paths
+                            continue
+                    # Regenerate system prompt with restored contexts
+                    self.agent._regenerate_system_prompt_with_additional_contexts()
+                
                 logger.info(
                     "Loaded %d messages from session %s",
                     len(non_system_messages),
@@ -483,12 +501,25 @@ class VibeApp(App):
             VibeConfig.save_updates(updates)
 
     async def _handle_command(self, user_input: str) -> bool:
-        if command := self.commands.find_command(user_input):
+        # Check if this is a command with arguments (e.g., /add-dir <path>)
+        command_word = user_input.split()[0] if user_input else ""
+        if command := self.commands.find_command(command_word):
             handler = getattr(self, command.handler)
+            # Check if handler accepts user_input parameter
+            import inspect
+            sig = inspect.signature(handler)
+            accepts_input = len(sig.parameters) > 0
+            
             if asyncio.iscoroutinefunction(handler):
-                await handler()
+                if accepts_input:
+                    await handler(user_input)
+                else:
+                    await handler()
             else:
-                handler()
+                if accepts_input:
+                    handler(user_input)
+                else:
+                    handler()
             return True
         return False
 
@@ -598,6 +629,7 @@ class VibeApp(App):
                 self.config,
                 mode=self.agent_mode,
                 enable_streaming=self.enable_streaming,
+                additional_directory_contexts=self._additional_directory_contexts,
             )
 
             if self.agent_mode != AgentMode.AUTO_APPROVE:
@@ -694,7 +726,8 @@ class VibeApp(App):
                 # Handle mode change events (legacy, for backward compatibility)
                 if isinstance(event, ModeChangedEvent):
                     self.agent_mode = event.new_mode
-                    self._sync_mode_to_ui()
+                    # Use call_after_refresh to ensure ChatInputContainer children are composed
+                    self.call_after_refresh(self._sync_mode_to_ui)
                     continue
 
                 if self.event_handler:
@@ -971,6 +1004,81 @@ class VibeApp(App):
 
     async def _exit_app(self) -> None:
         self.exit()
+
+    async def _add_directory_context(self, user_input: str) -> None:
+        """Add directory context to the conversation."""
+        if not self.agent:
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    "Agent not initialized yet. Send a message first.",
+                    collapsed=self._tools_collapsed,
+                )
+            )
+            return
+
+        # Extract directory path from command
+        command_text = user_input.strip()
+        if command_text.startswith("/add-dir "):
+            dir_path_str = command_text[len("/add-dir "):].strip()
+        elif command_text.startswith("/add-directory "):
+            dir_path_str = command_text[len("/add-directory "):].strip()
+        else:
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    "Invalid command format. Use: /add-dir <directory_path>",
+                    collapsed=self._tools_collapsed,
+                )
+            )
+            return
+
+        if not dir_path_str:
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    "No directory path provided. Use: /add-dir <directory_path>",
+                    collapsed=self._tools_collapsed,
+                )
+            )
+            return
+
+        # Convert to Path object and resolve
+        dir_path = Path(dir_path_str).expanduser().resolve()
+        
+        # Validate directory exists
+        if not dir_path.exists():
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    f"Directory does not exist: {dir_path}",
+                    collapsed=self._tools_collapsed,
+                )
+            )
+            return
+
+        if not dir_path.is_dir():
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    f"Path is not a directory: {dir_path}",
+                    collapsed=self._tools_collapsed,
+                )
+            )
+            return
+
+        try:
+            # Add the directory to the agent's additional contexts
+            self.agent.add_additional_directory_context(dir_path)
+            
+            # Regenerate the system prompt with the new context
+            self.agent._regenerate_system_prompt_with_additional_contexts()
+            
+            await self._mount_and_scroll(
+                UserCommandMessage(f"Added directory context: {dir_path}")
+            )
+        except Exception as e:
+            await self._mount_and_scroll(
+                ErrorMessage(
+                    f"Failed to add directory context: {e}",
+                    collapsed=self._tools_collapsed,
+                )
+            )
 
     async def _switch_to_config_app(self) -> None:
         if self._current_bottom_app == BottomApp.Config:
@@ -1354,6 +1462,7 @@ def run_textual_ui(
     initial_prompt: str | None = None,
     loaded_messages: list[LLMMessage] | None = None,
     session_info: ResumeSessionInfo | None = None,
+    additional_directory_contexts: list[Path] | None = None,
 ) -> None:
     update_notifier = GitHubVersionUpdateGateway(
         owner="qnguyen3", repository="qqcode", token=os.getenv("GITHUB_TOKEN")
@@ -1366,5 +1475,6 @@ def run_textual_ui(
         loaded_messages=loaded_messages,
         session_info=session_info,
         version_update_notifier=update_notifier,
+        additional_directory_contexts=additional_directory_contexts,
     )
     app.run()

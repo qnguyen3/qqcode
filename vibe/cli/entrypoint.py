@@ -330,6 +330,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         loaded_messages = None
         session_info = None
         full_session_id = None
+        additional_directory_contexts = None
 
         if args.continue_session or args.resume:
             if not config.session_logging.enabled:
@@ -368,6 +369,18 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 full_session_id = metadata.get("session_id")
                 session_id_display = (full_session_id or "unknown")[:8]
                 session_time = metadata.get("start_time", "unknown time")
+
+                # Extract additional directory contexts from metadata
+                additional_contexts = metadata.get("additional_directory_contexts", [])
+                additional_directory_contexts = []
+                for context_path_str in additional_contexts:
+                    try:
+                        context_path = Path(context_path_str)
+                        if context_path.exists() and context_path.is_dir():
+                            additional_directory_contexts.append(context_path)
+                    except Exception:
+                        # Skip invalid paths
+                        continue
 
                 session_info = ResumeSessionInfo(
                     type="continue" if args.continue_session else "resume",
@@ -431,6 +444,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
                 initial_prompt=args.initial_prompt or stdin_prompt,
                 loaded_messages=loaded_messages,
                 session_info=session_info,
+                additional_directory_contexts=additional_directory_contexts,
             )
 
     except (KeyboardInterrupt, EOFError):

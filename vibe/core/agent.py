@@ -116,6 +116,7 @@ class Agent:
         backend: BackendLike | None = None,
         enable_streaming: bool = False,
         session_id: str | None = None,
+        additional_directory_contexts: list[Path] | None = None,
     ) -> None:
         self.config = config
 
@@ -152,6 +153,9 @@ class Agent:
         if self.message_observer:
             self.message_observer(self.messages[0])
             self._last_observed_message_index = 1
+
+        # Store additional directory contexts
+        self._additional_directory_contexts: list[Path] = additional_directory_contexts or []
 
         self.stats = AgentStats()
         try:
@@ -267,7 +271,7 @@ class Agent:
                     stopped_by_middleware=True,
                 )
                 await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager
+                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
                 )
 
             case MiddlewareAction.INJECT_MESSAGE:
@@ -340,7 +344,7 @@ class Agent:
 
                 self._flush_new_messages()
                 await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager
+                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
                 )
 
                 if user_cancelled:
@@ -363,13 +367,13 @@ class Agent:
 
                 self._flush_new_messages()
                 await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager
+                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
                 )
 
         except Exception:
             self._flush_new_messages()
             await self.interaction_logger.save_interaction(
-                self.messages, self.stats, self.config, self.tool_manager
+                self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
             )
             raise
 
@@ -696,7 +700,7 @@ class Agent:
                     )
                 )
                 await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager
+                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
                 )
                 raise
 
@@ -718,7 +722,7 @@ class Agent:
                     )
                 )
                 await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager
+                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
                 )
                 raise
 
@@ -1046,7 +1050,7 @@ class Agent:
 
     async def clear_history(self) -> None:
         await self.interaction_logger.save_interaction(
-            self.messages, self.stats, self.config, self.tool_manager
+            self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
         )
         self.messages = self.messages[:1]
 
@@ -1068,7 +1072,7 @@ class Agent:
         try:
             self._clean_message_history()
             await self.interaction_logger.save_interaction(
-                self.messages, self.stats, self.config, self.tool_manager
+                self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
             )
 
             last_user_message = None
@@ -1114,7 +1118,7 @@ class Agent:
 
             self._reset_session()
             await self.interaction_logger.save_interaction(
-                self.messages, self.stats, self.config, self.tool_manager
+                self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
             )
 
             self.middleware_pipeline.reset(reset_reason=ResetReason.COMPACT)
@@ -1123,14 +1127,44 @@ class Agent:
 
         except Exception:
             await self.interaction_logger.save_interaction(
-                self.messages, self.stats, self.config, self.tool_manager
+                self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
             )
             raise
 
     def _regenerate_system_prompt_for_mode(self) -> None:
         """Regenerate the system prompt when mode changes."""
         new_system_prompt = get_universal_system_prompt(
-            self.tool_manager, self.config, skill_manager=self.skill_manager, mode=self._mode.value
+            self.tool_manager, 
+            self.config, 
+            skill_manager=self.skill_manager, 
+            mode=self._mode.value,
+            additional_directory_contexts=self._additional_directory_contexts
+        )
+        if len(self.messages) > 0:
+            self.messages[0] = LLMMessage(role=Role.system, content=new_system_prompt)
+        else:
+            self.messages.insert(0, LLMMessage(role=Role.system, content=new_system_prompt))
+
+    def add_additional_directory_context(self, directory_path: Path) -> None:
+        """Add an additional directory context to the agent."""
+        # Resolve the path to absolute form
+        resolved_path = directory_path.resolve()
+        
+        # Check if this directory is already added
+        if resolved_path in self._additional_directory_contexts:
+            raise ValueError(f"Directory {resolved_path} is already added to contexts")
+        
+        # Add to the list of additional contexts
+        self._additional_directory_contexts.append(resolved_path)
+
+    def _regenerate_system_prompt_with_additional_contexts(self) -> None:
+        """Regenerate the system prompt with additional directory contexts."""
+        new_system_prompt = get_universal_system_prompt(
+            self.tool_manager, 
+            self.config, 
+            skill_manager=self.skill_manager, 
+            mode=self._mode.value,
+            additional_directory_contexts=self._additional_directory_contexts
         )
         if len(self.messages) > 0:
             self.messages[0] = LLMMessage(role=Role.system, content=new_system_prompt)
@@ -1144,7 +1178,7 @@ class Agent:
         max_price: float | None = None,
     ) -> None:
         await self.interaction_logger.save_interaction(
-            self.messages, self.stats, self.config, self.tool_manager
+            self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
         )
 
         preserved_messages = self.messages[1:] if len(self.messages) > 1 else []
@@ -1159,7 +1193,11 @@ class Agent:
         self.tool_manager = ToolManager(self.config, skill_manager=self.skill_manager)
 
         new_system_prompt = get_universal_system_prompt(
-            self.tool_manager, self.config, skill_manager=self.skill_manager, mode=self._mode.value
+            self.tool_manager, 
+            self.config, 
+            skill_manager=self.skill_manager, 
+            mode=self._mode.value,
+            additional_directory_contexts=self._additional_directory_contexts
         )
         self.messages = [LLMMessage(role=Role.system, content=new_system_prompt)]
         did_system_prompt_change = old_system_prompt != new_system_prompt
@@ -1190,5 +1228,5 @@ class Agent:
         self.tool_manager.reset_all()
 
         await self.interaction_logger.save_interaction(
-            self.messages, self.stats, self.config, self.tool_manager
+            self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
         )

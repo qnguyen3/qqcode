@@ -62,6 +62,11 @@ class CommandRegistry:
                 handler="_exit_app",
                 exits=True,
             ),
+            "add_dir": Command(
+                aliases=frozenset(["/add-dir", "/add-directory"]),
+                description="Add directory context to the conversation",
+                handler="_add_directory_context",
+            ),
         }
 
         for command in excluded_commands:
