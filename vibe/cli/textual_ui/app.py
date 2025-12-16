@@ -275,8 +275,8 @@ class VibeApp(App):
         self.agent_mode = message.mode
         # First switch back to input (mounts ChatInputContainer)
         await self._switch_to_input_app()
-        # Then sync mode to UI and agent (ChatInputContainer now exists)
-        self._sync_mode_to_ui()
+        # Sync mode to UI after refresh cycle completes (children like #input-box need to be composed first)
+        self.call_after_refresh(self._sync_mode_to_ui)
         self._sync_mode_to_agent()
 
     async def on_plan_approval_widget_revision_requested(
