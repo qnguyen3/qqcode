@@ -79,7 +79,7 @@ body {
     font-family: var(--qq-font-ui);
     font-size: 13px;
     line-height: 1.5;
-    background: var(--qq-bg-primary);
+    background: var(--qq-bg-elevated);
     color: var(--qq-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
