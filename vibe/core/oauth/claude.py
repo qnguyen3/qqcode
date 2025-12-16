@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from vibe.core.oauth.token import OAuthToken
+from vibe.core.oauth.token import AnthropicOAuthToken
 
 # OAuth constants from Crush CLI implementation
 CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
@@ -61,7 +61,7 @@ def get_authorize_url(challenge: str, state: str) -> str:
     return f"{AUTHORIZE_URL}?{urlencode(params)}"
 
 
-async def exchange_token(code: str, verifier: str) -> OAuthToken:
+async def exchange_token(code: str, verifier: str) -> AnthropicOAuthToken:
     """Exchange authorization code for access and refresh tokens.
 
     Args:
@@ -69,7 +69,7 @@ async def exchange_token(code: str, verifier: str) -> OAuthToken:
         verifier: The PKCE verifier used when generating the challenge.
 
     Returns:
-        OAuthToken with access token, refresh token, and expiration info.
+        AnthropicOAuthToken with access token, refresh token, and expiration info.
 
     Raises:
         ValueError: If the token response is invalid.
@@ -114,21 +114,21 @@ async def exchange_token(code: str, verifier: str) -> OAuthToken:
 
         token_data = response.json()
 
-    return OAuthToken.from_token_response(
+    return AnthropicOAuthToken.from_token_response(
         access_token=token_data["access_token"],
         refresh_token=token_data["refresh_token"],
         expires_in=token_data.get("expires_in", 3600),
     )
 
 
-async def refresh_token(refresh_token_str: str) -> OAuthToken:
+async def refresh_token(refresh_token_str: str) -> AnthropicOAuthToken:
     """Refresh an expired access token.
 
     Args:
         refresh_token_str: The refresh token to use.
 
     Returns:
-        New OAuthToken with fresh access token.
+        New AnthropicOAuthToken with fresh access token.
 
     Raises:
         ValueError: If the refresh request fails.
@@ -158,7 +158,7 @@ async def refresh_token(refresh_token_str: str) -> OAuthToken:
 
         token_data = response.json()
 
-    return OAuthToken.from_token_response(
+    return AnthropicOAuthToken.from_token_response(
         access_token=token_data["access_token"],
         refresh_token=token_data.get("refresh_token", refresh_token_str),
         expires_in=token_data.get("expires_in", 3600),

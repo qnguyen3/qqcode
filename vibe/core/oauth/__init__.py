@@ -13,9 +13,10 @@ from vibe.core.oauth.qwen import (
     refresh_token as qwen_refresh_token,
     request_device_code as qwen_request_device_code,
 )
-from vibe.core.oauth.token import OAuthToken, QwenOAuthToken
+from vibe.core.oauth.token import AnthropicOAuthToken, OAuthToken, QwenOAuthToken
 
 __all__ = [
+    "AnthropicOAuthToken",
     "DeviceCodeResponse",
     "OAuthToken",
     "QwenOAuthToken",

@@ -19,7 +19,7 @@ from pydantic_settings import (
 )
 import tomli_w
 
-from vibe.core.oauth.token import OAuthToken, QwenOAuthToken
+from vibe.core.oauth.token import AnthropicOAuthToken, OAuthToken, QwenOAuthToken
 from vibe.core.prompts import SystemPrompt
 from vibe.core.tools.base import BaseToolConfig
 
@@ -160,7 +160,7 @@ class ProviderConfig(BaseModel):
     api_key_env_var: str = ""
     api_style: str = "openai"
     backend: Backend = Backend.GENERIC
-    oauth_token: OAuthToken | QwenOAuthToken | None = None
+    oauth_token: AnthropicOAuthToken | QwenOAuthToken | None = None
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
@@ -784,12 +784,14 @@ class VibeConfig(BaseSettings):
         return config_dict
 
 
-def save_oauth_token(provider_name: str, token: OAuthToken) -> None:
+def save_oauth_token(
+    provider_name: str, token: AnthropicOAuthToken | QwenOAuthToken
+) -> None:
     """Save an OAuth token to the config file for a specific provider.
 
     Args:
-        provider_name: The name of the provider (e.g., "anthropic").
-        token: The OAuthToken to save.
+        provider_name: The name of the provider (e.g., "anthropic", "qwen").
+        token: The OAuth token to save.
     """
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     current_config = TomlFileSettingsSource(VibeConfig).toml_data

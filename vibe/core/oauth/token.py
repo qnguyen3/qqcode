@@ -31,6 +31,25 @@ class OAuthToken(BaseModel):
         )
 
 
+class AnthropicOAuthToken(OAuthToken):
+    """Anthropic OAuth token for Claude API authentication."""
+
+    @classmethod
+    def from_token_response(
+        cls,
+        access_token: str,
+        refresh_token: str,
+        expires_in: int,
+    ) -> AnthropicOAuthToken:
+        """Create an AnthropicOAuthToken from a token response."""
+        return cls(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=expires_in,
+            expires_at=int(time.time()) + expires_in,
+        )
+
+
 class QwenOAuthToken(OAuthToken):
     """Qwen OAuth token with optional resource_url for dynamic API endpoint."""
 
