@@ -330,6 +330,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         loaded_messages = None
         session_info = None
         full_session_id = None
+        additional_directory_contexts = None
 
         if args.continue_session or args.resume:
             if not config.session_logging.enabled:
