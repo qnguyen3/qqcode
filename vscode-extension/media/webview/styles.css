@@ -34,8 +34,9 @@
     --qq-border-emphasis: #484f58;
 
     /* Typography */
-    --qq-font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    --qq-font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    --qq-font-ui:
+        "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --qq-font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
 
     /* Spacing Scale */
     --qq-space-1: 4px;
@@ -88,7 +89,7 @@ body {
 
 /* Subtle grid background for depth */
 body::before {
-    content: '';
+    content: "";
     position: fixed;
     inset: 0;
     background-image:
@@ -209,12 +210,18 @@ body::before {
 }
 
 @keyframes badgeFadeIn {
-    from { opacity: 0; transform: translateY(-2px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 #current-session-badge::before {
-    content: '';
+    content: "";
     width: 4px;
     height: 4px;
     background: var(--qq-accent-primary);
@@ -259,7 +266,7 @@ body::before {
 }
 
 #messages:empty::after {
-    content: 'Start a conversation with QQCode';
+    content: "Start a conversation with QQCode";
     display: block;
     text-align: center;
     color: var(--qq-text-muted);
@@ -270,7 +277,9 @@ body::before {
 }
 
 @keyframes fadeIn {
-    to { opacity: 1; }
+    to {
+        opacity: 1;
+    }
 }
 
 /* ================================
@@ -311,7 +320,7 @@ body::before {
 }
 
 .message.assistant.streaming::after {
-    content: '';
+    content: "";
     display: inline-block;
     width: 6px;
     height: 14px;
@@ -323,8 +332,13 @@ body::before {
 }
 
 @keyframes cursor {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
 }
 
 .message pre {
@@ -496,11 +510,30 @@ body::before {
     border-radius: var(--qq-radius-sm);
 }
 
+/* Historical Tool Calls/Results (loaded from session history) */
+.tool-call.historical,
+.tool-result.historical {
+    opacity: 0.85;
+    animation: none;
+}
+
+.tool-result.historical {
+    padding: var(--qq-space-2) var(--qq-space-3);
+}
+
+.tool-result.historical .tool-result-header {
+    margin-bottom: 0;
+}
+
 /* ================================
    Tool & Plan Approval
    ================================ */
 .tool-approval {
-    background: linear-gradient(135deg, rgba(240, 136, 62, 0.08) 0%, var(--qq-bg-surface) 100%);
+    background: linear-gradient(
+        135deg,
+        rgba(240, 136, 62, 0.08) 0%,
+        var(--qq-bg-surface) 100%
+    );
     border: 1px solid var(--qq-accent-amber-dim);
     border-radius: var(--qq-radius-lg);
     padding: var(--qq-space-4);
@@ -510,8 +543,13 @@ body::before {
 }
 
 @keyframes approvalPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(240, 136, 62, 0.3); }
-    50% { box-shadow: 0 0 0 3px rgba(240, 136, 62, 0.05); }
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 0 3px rgba(240, 136, 62, 0.05);
+    }
 }
 
 .tool-approval-header {
@@ -614,7 +652,11 @@ body::before {
 
 .plan-approval-header {
     padding: var(--qq-space-4);
-    background: linear-gradient(135deg, var(--qq-accent-primary-glow) 0%, transparent 100%);
+    background: linear-gradient(
+        135deg,
+        var(--qq-accent-primary-glow) 0%,
+        transparent 100%
+    );
     border-bottom: 1px solid var(--qq-border-default);
     font-size: 14px;
     font-weight: 700;
@@ -864,7 +906,8 @@ body::before {
     margin-left: auto;
     width: 14px;
     height: 14px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat center;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")
+        no-repeat center;
     transition: transform var(--qq-transition-fast);
 }
 
@@ -891,7 +934,11 @@ body::before {
    Error Messages
    ================================ */
 .error {
-    background: linear-gradient(135deg, rgba(248, 81, 73, 0.1) 0%, var(--qq-bg-surface) 100%);
+    background: linear-gradient(
+        135deg,
+        rgba(248, 81, 73, 0.1) 0%,
+        var(--qq-bg-surface) 100%
+    );
     border: 1px solid var(--qq-accent-red);
     border-radius: var(--qq-radius-lg);
     padding: var(--qq-space-3) var(--qq-space-4);
@@ -905,9 +952,17 @@ body::before {
 }
 
 @keyframes errorShake {
-    0%, 100% { transform: translateX(0); }
-    25%, 75% { transform: translateX(-3px); }
-    50% { transform: translateX(3px); }
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    25%,
+    75% {
+        transform: translateX(-3px);
+    }
+    50% {
+        transform: translateX(3px);
+    }
 }
 
 /* ================================
@@ -1035,7 +1090,8 @@ body::before {
 }
 
 .custom-select select {
-    padding: var(--qq-space-1) var(--qq-space-6) var(--qq-space-1) var(--qq-space-3);
+    padding: var(--qq-space-1) var(--qq-space-6) var(--qq-space-1)
+        var(--qq-space-3);
     background: var(--qq-bg-surface);
     color: var(--qq-text-primary);
     border: 1px solid var(--qq-border-default);
@@ -1113,7 +1169,9 @@ body::before {
     font-size: 14px;
     font-weight: 600;
     color: var(--qq-text-primary);
-    box-shadow: var(--qq-shadow-lg), 0 0 0 1px rgba(88, 166, 255, 0.1);
+    box-shadow:
+        var(--qq-shadow-lg),
+        0 0 0 1px rgba(88, 166, 255, 0.1);
     z-index: 1000;
     opacity: 0;
     pointer-events: none;
@@ -1155,7 +1213,9 @@ body::before {
    Animations & Effects
    ================================ */
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .spinning {
@@ -1164,7 +1224,9 @@ body::before {
 
 /* Smooth transitions for dynamic content */
 * {
-    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+    transition-property:
+        background-color, border-color, color, fill, stroke, opacity,
+        box-shadow, transform;
     transition-duration: var(--qq-transition-fast);
     transition-timing-function: cubic-bezier(0.2, 0, 0.38, 0.9);
 }

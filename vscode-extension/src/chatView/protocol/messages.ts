@@ -3,252 +3,270 @@
  * This provides type safety for all messages passed between the two contexts.
  */
 
-import { SessionSummary, ModelInfo } from '../../types/events';
+import { SessionSummary, ModelInfo } from "../../types/events";
 
 // Execution mode type
-export type ExecutionMode = 'plan' | 'interactive' | 'auto-approve';
+export type ExecutionMode = "plan" | "interactive" | "auto-approve";
 
 // =====================
 // Extension → Webview Messages
 // =====================
 
 export type AddMessagePayload = {
-    type: 'addMessage';
-    role: 'user' | 'assistant';
-    content: string;
-    isHistory?: boolean;
+  type: "addMessage";
+  role: "user" | "assistant";
+  content: string;
+  isHistory?: boolean;
 };
 
 export type UpdateAssistantMessagePayload = {
-    type: 'updateAssistantMessage';
-    content: string;
+  type: "updateAssistantMessage";
+  content: string;
 };
 
 export type FinalizeAssistantMessagePayload = {
-    type: 'finalizeAssistantMessage';
+  type: "finalizeAssistantMessage";
 };
 
 export type ToolCallPayload = {
-    type: 'toolCall';
-    toolName: string;
-    toolCallId: string;
-    args: Record<string, unknown>;
+  type: "toolCall";
+  toolName: string;
+  toolCallId: string;
+  args: Record<string, unknown>;
 };
 
 export type ToolResultPayload = {
-    type: 'toolResult';
-    toolCallId: string;
-    result: string;
-    isError: boolean;
+  type: "toolResult";
+  toolCallId: string;
+  result: string;
+  isError: boolean;
 };
 
 export type ToolApprovalRequiredPayload = {
-    type: 'toolApprovalRequired';
-    toolName: string;
-    toolCallId: string;
-    args: Record<string, unknown>;
+  type: "toolApprovalRequired";
+  toolName: string;
+  toolCallId: string;
+  args: Record<string, unknown>;
 };
 
 export type ThinkingUpdatePayload = {
-    type: 'thinkingUpdate';
-    content: string;
+  type: "thinkingUpdate";
+  content: string;
 };
 
 export type ThinkingCompletePayload = {
-    type: 'thinkingComplete';
+  type: "thinkingComplete";
 };
 
 export type ErrorPayload = {
-    type: 'error';
-    message: string;
+  type: "error";
+  message: string;
 };
 
 export type UpdateSessionsListPayload = {
-    type: 'updateSessionsList';
-    sessions: SessionSummary[];
+  type: "updateSessionsList";
+  sessions: SessionSummary[];
 };
 
 export type UpdateCurrentSessionPayload = {
-    type: 'updateCurrentSession';
-    sessionId: string | null;
+  type: "updateCurrentSession";
+  sessionId: string | null;
 };
 
 export type ClearMessagesPayload = {
-    type: 'clearMessages';
+  type: "clearMessages";
 };
 
 export type HideConversationControlsPayload = {
-    type: 'hideConversationControls';
-    reason: string;
+  type: "hideConversationControls";
+  reason: string;
 };
 
 export type UpdateModelsListPayload = {
-    type: 'updateModelsList';
-    models: ModelInfo[];
+  type: "updateModelsList";
+  models: ModelInfo[];
 };
 
 export type UpdateCurrentModelPayload = {
-    type: 'updateCurrentModel';
-    modelAlias: string | null;
+  type: "updateCurrentModel";
+  modelAlias: string | null;
 };
 
 export type HideModelControlsPayload = {
-    type: 'hideModelControls';
-    reason: string;
+  type: "hideModelControls";
+  reason: string;
 };
 
 export type SetLoadingPayload = {
-    type: 'setLoading';
-    loading: boolean;
+  type: "setLoading";
+  loading: boolean;
 };
 
 export type UpdateCurrentModePayload = {
-    type: 'updateCurrentMode';
-    mode: ExecutionMode;
+  type: "updateCurrentMode";
+  mode: ExecutionMode;
 };
 
 export type PlanApprovalRequiredPayload = {
-    type: 'planApprovalRequired';
-    plan: string;
+  type: "planApprovalRequired";
+  plan: string;
 };
 
 export type PlanApprovalCompletePayload = {
-    type: 'planApprovalComplete';
-    approved: boolean;
-    mode?: ExecutionMode;
-    feedback?: string;
+  type: "planApprovalComplete";
+  approved: boolean;
+  mode?: ExecutionMode;
+  feedback?: string;
+};
+
+export type HistoricalToolCallPayload = {
+  type: "historicalToolCall";
+  toolName: string;
+  args: string; // JSON string of args for display
+};
+
+export type HistoricalToolResultPayload = {
+  type: "historicalToolResult";
+  toolName: string;
+  isError: boolean;
 };
 
 export type FileCompletionSuggestion = {
-    label: string;
-    path: string;
-    isDirectory: boolean;
+  label: string;
+  path: string;
+  isDirectory: boolean;
 };
 
 export type FileCompletionSuggestionsPayload = {
-    type: 'fileCompletionSuggestions';
-    suggestions: FileCompletionSuggestion[];
-    requestId: string;
+  type: "fileCompletionSuggestions";
+  suggestions: FileCompletionSuggestion[];
+  requestId: string;
 };
 
 /**
  * All possible messages sent from extension to webview
  */
 export type ExtensionToWebviewMessage =
-    | AddMessagePayload
-    | UpdateAssistantMessagePayload
-    | FinalizeAssistantMessagePayload
-    | ToolCallPayload
-    | ToolResultPayload
-    | ToolApprovalRequiredPayload
-    | ThinkingUpdatePayload
-    | ThinkingCompletePayload
-    | ErrorPayload
-    | UpdateSessionsListPayload
-    | UpdateCurrentSessionPayload
-    | ClearMessagesPayload
-    | HideConversationControlsPayload
-    | UpdateModelsListPayload
-    | UpdateCurrentModelPayload
-    | HideModelControlsPayload
-    | SetLoadingPayload
-    | UpdateCurrentModePayload
-    | PlanApprovalRequiredPayload
-    | PlanApprovalCompletePayload
-    | FileCompletionSuggestionsPayload;
+  | AddMessagePayload
+  | UpdateAssistantMessagePayload
+  | FinalizeAssistantMessagePayload
+  | ToolCallPayload
+  | ToolResultPayload
+  | ToolApprovalRequiredPayload
+  | ThinkingUpdatePayload
+  | ThinkingCompletePayload
+  | ErrorPayload
+  | UpdateSessionsListPayload
+  | UpdateCurrentSessionPayload
+  | ClearMessagesPayload
+  | HideConversationControlsPayload
+  | UpdateModelsListPayload
+  | UpdateCurrentModelPayload
+  | HideModelControlsPayload
+  | SetLoadingPayload
+  | UpdateCurrentModePayload
+  | PlanApprovalRequiredPayload
+  | PlanApprovalCompletePayload
+  | FileCompletionSuggestionsPayload
+  | HistoricalToolCallPayload
+  | HistoricalToolResultPayload;
 
 // =====================
 // Webview → Extension Messages
 // =====================
 
 export type WebviewReadyMessage = {
-    type: 'webviewReady';
+  type: "webviewReady";
 };
 
 export type UserMessageMessage = {
-    type: 'userMessage';
-    text: string;
+  type: "userMessage";
+  text: string;
 };
 
 export type CancelRequestMessage = {
-    type: 'cancelRequest';
+  type: "cancelRequest";
 };
 
 export type NewConversationMessage = {
-    type: 'newConversation';
+  type: "newConversation";
 };
 
 export type SelectSessionMessage = {
-    type: 'selectSession';
-    sessionId: string | null;
+  type: "selectSession";
+  sessionId: string | null;
 };
 
 export type RefreshSessionsMessage = {
-    type: 'refreshSessions';
+  type: "refreshSessions";
 };
 
 export type SelectModelMessage = {
-    type: 'selectModel';
-    modelAlias: string;
+  type: "selectModel";
+  modelAlias: string;
 };
 
 export type SelectModeMessage = {
-    type: 'selectMode';
-    mode: ExecutionMode;
+  type: "selectMode";
+  mode: ExecutionMode;
 };
 
 export type ApproveToolCallMessage = {
-    type: 'approveToolCall';
-    toolCallId: string;
-    approved: boolean;
+  type: "approveToolCall";
+  toolCallId: string;
+  approved: boolean;
 };
 
 export type PlanApprovalResponseMessage = {
-    type: 'planApprovalResponse';
-    approved: boolean;
-    mode?: ExecutionMode;
-    feedback?: string;
+  type: "planApprovalResponse";
+  approved: boolean;
+  mode?: ExecutionMode;
+  feedback?: string;
 };
 
 export type RequestFileCompletionsMessage = {
-    type: 'requestFileCompletions';
-    text: string;
-    cursorPosition: number;
-    requestId: string;
+  type: "requestFileCompletions";
+  text: string;
+  cursorPosition: number;
+  requestId: string;
 };
 
 export type OpenFileMessage = {
-    type: 'openFile';
-    path: string;
+  type: "openFile";
+  path: string;
 };
 
 /**
  * All possible messages sent from webview to extension
  */
 export type WebviewToExtensionMessage =
-    | WebviewReadyMessage
-    | UserMessageMessage
-    | CancelRequestMessage
-    | NewConversationMessage
-    | SelectSessionMessage
-    | RefreshSessionsMessage
-    | SelectModelMessage
-    | SelectModeMessage
-    | ApproveToolCallMessage
-    | PlanApprovalResponseMessage
-    | RequestFileCompletionsMessage
-    | OpenFileMessage;
+  | WebviewReadyMessage
+  | UserMessageMessage
+  | CancelRequestMessage
+  | NewConversationMessage
+  | SelectSessionMessage
+  | RefreshSessionsMessage
+  | SelectModelMessage
+  | SelectModeMessage
+  | ApproveToolCallMessage
+  | PlanApprovalResponseMessage
+  | RequestFileCompletionsMessage
+  | OpenFileMessage;
 
 // =====================
 // Type Guards
 // =====================
 
-export function isExtensionMessage(msg: unknown): msg is ExtensionToWebviewMessage {
-    return typeof msg === 'object' && msg !== null && 'type' in msg;
+export function isExtensionMessage(
+  msg: unknown,
+): msg is ExtensionToWebviewMessage {
+  return typeof msg === "object" && msg !== null && "type" in msg;
 }
 
-export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage {
-    return typeof msg === 'object' && msg !== null && 'type' in msg;
+export function isWebviewMessage(
+  msg: unknown,
+): msg is WebviewToExtensionMessage {
+  return typeof msg === "object" && msg !== null && "type" in msg;
 }
 
 // =====================
@@ -258,18 +276,18 @@ export function isWebviewMessage(msg: unknown): msg is WebviewToExtensionMessage
 /**
  * Extract the message type string from a message type
  */
-export type ExtractMessageType<T extends { type: string }> = T['type'];
+export type ExtractMessageType<T extends { type: string }> = T["type"];
 
 /**
  * Map of message type strings to their full message types (Extension → Webview)
  */
 export type ExtensionMessageMap = {
-    [K in ExtensionToWebviewMessage as K['type']]: K;
+  [K in ExtensionToWebviewMessage as K["type"]]: K;
 };
 
 /**
  * Map of message type strings to their full message types (Webview → Extension)
  */
 export type WebviewMessageMap = {
-    [K in WebviewToExtensionMessage as K['type']]: K;
+  [K in WebviewToExtensionMessage as K["type"]]: K;
 };
