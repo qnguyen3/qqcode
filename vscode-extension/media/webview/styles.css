@@ -1,42 +1,41 @@
 /* QQCode - Modern Developer Interface */
-/* A refined, technical aesthetic for professional coding assistants */
+/* Adapts to VS Code theme automatically */
 
 /* ================================
-   Design Tokens
+   Design Tokens - VS Code Theme Aware
    ================================ */
 :root {
-    /* Core Colors - Sophisticated Dark Theme */
-    --qq-bg-primary: #0d1117;
-    --qq-bg-elevated: #161b22;
-    --qq-bg-surface: #1c2128;
-    --qq-bg-hover: #21262d;
-    --qq-bg-input: #0d1117;
+    /* Core Colors - Mapped to VS Code theme variables */
+    --qq-bg-primary: var(--vscode-editor-background);
+    --qq-bg-elevated: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    --qq-bg-surface: var(--vscode-input-background, var(--vscode-editor-background));
+    --qq-bg-hover: var(--vscode-list-hoverBackground, var(--vscode-list-activeSelectionBackground));
+    --qq-bg-input: var(--vscode-input-background);
 
     /* Text Hierarchy */
-    --qq-text-primary: #e6edf3;
-    --qq-text-secondary: #8b949e;
-    --qq-text-muted: #6e7681;
-    --qq-text-inverse: #0d1117;
+    --qq-text-primary: var(--vscode-editor-foreground);
+    --qq-text-secondary: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+    --qq-text-muted: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+    --qq-text-inverse: var(--vscode-button-foreground, var(--vscode-editor-background));
 
-    /* Accent System */
-    --qq-accent-primary: #58a6ff;
-    --qq-accent-primary-dim: #1f6feb;
-    --qq-accent-primary-glow: rgba(88, 166, 255, 0.12);
-    --qq-accent-amber: #f0883e;
-    --qq-accent-amber-dim: #d18616;
-    --qq-accent-green: #3fb950;
-    --qq-accent-red: #f85149;
-    --qq-accent-purple: #a371f7;
+    /* Accent System - Using VS Code semantic colors */
+    --qq-accent-primary: var(--vscode-focusBorder, var(--vscode-button-background));
+    --qq-accent-primary-dim: var(--vscode-button-background, var(--vscode-focusBorder));
+    --qq-accent-primary-glow: var(--vscode-inputOption-activeBackground, rgba(0, 127, 212, 0.15));
+    --qq-accent-amber: var(--vscode-editorWarning-foreground, #f0883e);
+    --qq-accent-amber-dim: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground));
+    --qq-accent-green: var(--vscode-testing-iconPassed, var(--vscode-terminal-ansiGreen, #3fb950));
+    --qq-accent-red: var(--vscode-errorForeground, var(--vscode-inputValidation-errorBorder, #f85149));
+    --qq-accent-purple: var(--vscode-symbolIcon-functionForeground, var(--vscode-textLink-foreground, #a371f7));
 
     /* Borders & Dividers */
-    --qq-border-subtle: #21262d;
-    --qq-border-default: #30363d;
-    --qq-border-emphasis: #484f58;
+    --qq-border-subtle: var(--vscode-widget-border, var(--vscode-editorGroup-border));
+    --qq-border-default: var(--vscode-input-border, var(--vscode-widget-border));
+    --qq-border-emphasis: var(--vscode-focusBorder);
 
-    /* Typography */
-    --qq-font-ui:
-        "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-    --qq-font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    /* Typography - Use VS Code fonts */
+    --qq-font-ui: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, sans-serif);
+    --qq-font-mono: var(--vscode-editor-font-family, "SF Mono", Menlo, monospace);
 
     /* Spacing Scale */
     --qq-space-1: 4px;
@@ -53,10 +52,10 @@
     --qq-radius-lg: 8px;
     --qq-radius-xl: 12px;
 
-    /* Shadows */
-    --qq-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --qq-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --qq-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    /* Shadows - Adaptive to theme */
+    --qq-shadow-sm: var(--vscode-widget-shadow, 0 1px 2px rgba(0, 0, 0, 0.2));
+    --qq-shadow-md: var(--vscode-widget-shadow, 0 4px 12px rgba(0, 0, 0, 0.3));
+    --qq-shadow-lg: var(--vscode-widget-shadow, 0 8px 24px rgba(0, 0, 0, 0.4));
 
     /* Transitions */
     --qq-transition-fast: 120ms cubic-bezier(0.2, 0, 0.38, 0.9);
@@ -87,18 +86,7 @@ body {
     overflow: hidden;
 }
 
-/* Subtle grid background for depth */
-body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-image:
-        linear-gradient(rgba(88, 166, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(88, 166, 255, 0.015) 1px, transparent 1px);
-    background-size: 20px 20px;
-    pointer-events: none;
-    z-index: 0;
-}
+/* Removed custom grid background - using plain background for theme compatibility */
 
 /* ================================
    Compact Top Bar
@@ -186,19 +174,19 @@ body::before {
 #new-conversation-btn {
     background: var(--qq-accent-primary-dim);
     border-color: var(--qq-accent-primary-dim);
-    color: white;
+    color: var(--vscode-button-foreground, white);
 }
 
 #new-conversation-btn:hover {
     background: var(--qq-accent-primary);
     border-color: var(--qq-accent-primary);
-    box-shadow: 0 0 16px var(--qq-accent-primary-glow);
+    box-shadow: var(--qq-shadow-md);
 }
 
 #current-session-badge {
     padding: var(--qq-space-1) var(--qq-space-2);
     background: var(--qq-accent-primary-glow);
-    border: 1px solid rgba(88, 166, 255, 0.3);
+    border: 1px solid var(--qq-border-default);
     border-radius: var(--qq-radius-sm);
     font-family: var(--qq-font-mono);
     font-size: 10px;
@@ -307,7 +295,7 @@ body::before {
 }
 
 .message.user {
-    background: rgba(88, 166, 255, 0.06);
+    background: var(--vscode-textBlockQuote-background, var(--qq-bg-surface));
     border-left: 2px solid var(--qq-accent-primary);
     padding: var(--qq-space-3) var(--qq-space-4);
     margin: var(--qq-space-2) 0;
@@ -356,10 +344,10 @@ body::before {
 }
 
 .message.user code {
-    background: rgba(88, 166, 255, 0.15);
+    background: var(--vscode-textCodeBlock-background, var(--qq-bg-surface));
     padding: 2px 5px;
     border-radius: var(--qq-radius-sm);
-    color: var(--qq-accent-primary);
+    color: var(--vscode-textPreformat-foreground, var(--qq-accent-primary));
 }
 
 .message.assistant code:not(pre code) {
@@ -370,8 +358,8 @@ body::before {
 }
 
 .message.user pre {
-    background: rgba(13, 17, 23, 0.6);
-    border-color: rgba(88, 166, 255, 0.2);
+    background: var(--vscode-textCodeBlock-background, var(--qq-bg-primary));
+    border-color: var(--qq-border-default);
 }
 
 /* Message headings */
@@ -529,11 +517,7 @@ body::before {
    Tool & Plan Approval
    ================================ */
 .tool-approval {
-    background: linear-gradient(
-        135deg,
-        rgba(240, 136, 62, 0.08) 0%,
-        var(--qq-bg-surface) 100%
-    );
+    background: var(--vscode-inputValidation-warningBackground, var(--qq-bg-surface));
     border: 1px solid var(--qq-accent-amber-dim);
     border-radius: var(--qq-radius-lg);
     padding: var(--qq-space-4);
@@ -545,10 +529,10 @@ body::before {
 @keyframes approvalPulse {
     0%,
     100% {
-        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0.3);
+        box-shadow: 0 0 0 0 var(--vscode-inputValidation-warningBorder, var(--qq-accent-amber));
     }
     50% {
-        box-shadow: 0 0 0 3px rgba(240, 136, 62, 0.05);
+        box-shadow: 0 0 0 3px var(--vscode-inputValidation-warningBackground, transparent);
     }
 }
 
@@ -590,12 +574,12 @@ body::before {
 
 .approve-btn {
     background: var(--qq-accent-green);
-    color: white;
+    color: var(--vscode-button-foreground, white);
 }
 
 .approve-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(63, 185, 80, 0.25);
+    box-shadow: var(--qq-shadow-md);
 }
 
 .reject-btn {
@@ -605,7 +589,7 @@ body::before {
 }
 
 .reject-btn:hover {
-    background: rgba(248, 81, 73, 0.1);
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
     color: var(--qq-accent-red);
     border-color: var(--qq-accent-red);
 }
@@ -619,12 +603,12 @@ body::before {
 }
 
 .approval-resolved.approved {
-    background: rgba(63, 185, 80, 0.1);
+    background: var(--vscode-inputValidation-infoBackground, var(--qq-bg-surface));
     color: var(--qq-accent-green);
 }
 
 .approval-resolved.rejected {
-    background: rgba(248, 81, 73, 0.1);
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
     color: var(--qq-accent-red);
 }
 
@@ -652,11 +636,7 @@ body::before {
 
 .plan-approval-header {
     padding: var(--qq-space-4);
-    background: linear-gradient(
-        135deg,
-        var(--qq-accent-primary-glow) 0%,
-        transparent 100%
-    );
+    background: var(--vscode-sideBarSectionHeader-background, var(--qq-bg-elevated));
     border-bottom: 1px solid var(--qq-border-default);
     font-size: 14px;
     font-weight: 700;
@@ -791,11 +771,11 @@ body::before {
 .plan-option-button:first-child {
     background: var(--qq-accent-green);
     border: none;
-    color: white;
+    color: var(--vscode-button-foreground, white);
 }
 
 .plan-option-button:first-child:hover {
-    box-shadow: 0 4px 12px rgba(63, 185, 80, 0.25);
+    box-shadow: var(--qq-shadow-md);
 }
 
 .plan-option-description {
@@ -853,14 +833,14 @@ body::before {
 
 .revision-submit-btn {
     background: var(--qq-accent-primary-dim);
-    color: white;
+    color: var(--vscode-button-foreground, white);
     border: none;
 }
 
 .revision-submit-btn:hover {
     background: var(--qq-accent-primary);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--qq-accent-primary-glow);
+    box-shadow: var(--qq-shadow-md);
 }
 
 .revision-cancel-btn {
@@ -934,11 +914,7 @@ body::before {
    Error Messages
    ================================ */
 .error {
-    background: linear-gradient(
-        135deg,
-        rgba(248, 81, 73, 0.1) 0%,
-        var(--qq-bg-surface) 100%
-    );
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
     border: 1px solid var(--qq-accent-red);
     border-radius: var(--qq-radius-lg);
     padding: var(--qq-space-3) var(--qq-space-4);
@@ -1027,7 +1003,7 @@ body::before {
     align-items: center;
     justify-content: center;
     background: var(--qq-accent-primary-dim);
-    color: white;
+    color: var(--vscode-button-foreground, white);
     border: none;
     border-radius: var(--qq-radius-lg);
     cursor: pointer;
@@ -1038,7 +1014,7 @@ body::before {
 #send-btn:hover:not(:disabled) {
     background: var(--qq-accent-primary);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--qq-accent-primary-glow);
+    box-shadow: var(--qq-shadow-md);
 }
 
 #send-btn:active:not(:disabled) {
@@ -1149,9 +1125,7 @@ body::before {
     font-size: 14px;
     font-weight: 600;
     color: var(--qq-text-primary);
-    box-shadow:
-        var(--qq-shadow-lg),
-        0 0 0 1px rgba(88, 166, 255, 0.1);
+    box-shadow: var(--qq-shadow-lg);
     z-index: 1000;
     opacity: 0;
     pointer-events: none;
@@ -1297,19 +1271,19 @@ button,
     align-items: center;
     gap: var(--qq-space-1);
     padding: 2px var(--qq-space-2);
-    background: var(--qq-accent-primary-glow);
-    border: 1px solid var(--qq-accent-primary-dim);
+    background: var(--vscode-badge-background, var(--qq-accent-primary-glow));
+    border: 1px solid var(--qq-border-default);
     border-radius: var(--qq-radius-sm);
     font-family: var(--qq-font-mono);
     font-size: 11px;
-    color: var(--qq-accent-primary);
+    color: var(--vscode-textLink-foreground, var(--qq-accent-primary));
     cursor: pointer;
     transition: all var(--qq-transition-fast);
 }
 
 .file-mention:hover {
-    background: var(--qq-accent-primary-dim);
-    color: var(--qq-text-primary);
+    background: var(--vscode-textLink-activeForeground, var(--qq-accent-primary-dim));
+    color: var(--vscode-button-foreground, var(--qq-text-primary));
 }
 
 .file-mention-icon {
