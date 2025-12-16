@@ -173,7 +173,11 @@ class ChatInputContainer(Vertical):
         else:
             self._mode = AgentMode.AUTO_APPROVE if mode else AgentMode.INTERACTIVE
 
-        input_box = self.get_widget_by_id(self.ID_INPUT_BOX)
+        try:
+            input_box = self.get_widget_by_id(self.ID_INPUT_BOX)
+        except Exception:
+            # Widget children may not be composed yet; styling will be applied via _get_border_class() on compose
+            return
         # Remove all border classes first
         input_box.remove_class(self.BORDER_WARNING_CLASS, self.BORDER_PLAN_CLASS)
         # Add the appropriate class

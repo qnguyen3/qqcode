@@ -694,7 +694,8 @@ class VibeApp(App):
                 # Handle mode change events (legacy, for backward compatibility)
                 if isinstance(event, ModeChangedEvent):
                     self.agent_mode = event.new_mode
-                    self._sync_mode_to_ui()
+                    # Use call_after_refresh to ensure ChatInputContainer children are composed
+                    self.call_after_refresh(self._sync_mode_to_ui)
                     continue
 
                 if self.event_handler:
