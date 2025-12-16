@@ -174,10 +174,10 @@ class ApiKeyScreen(OnboardingScreen):
                     # OAuth section for Anthropic
                     with Vertical(id="oauth-section", classes="hidden"):
                         yield Static(
-                            "Login with your Claude Max subscription.", id="oauth-title"
+                            "Login with your Claude Subscription", id="oauth-title"
                         )
                         yield Static(
-                            "[dim]A browser window will open for authentication.[/dim]",
+                            "Press Enter to open a browser for Authentication",
                             id="oauth-hint",
                         )
                         yield Static("", id="oauth-status")

@@ -305,22 +305,30 @@ ApiKeyScreen #enter-hint {
 }
 
 #oauth-section {
-    width: auto;
+    width: 100%;
     height: auto;
     margin-top: 2;
+    padding: 1 2;
 }
 
 #oauth-section.hidden {
     display: none;
 }
 
+#oauth-section Static {
+    width: 100%;
+}
+
 #oauth-title {
     text-align: center;
     margin-bottom: 1;
+    color: $text;
 }
 
 #oauth-hint {
     text-align: center;
+    color: $text;
+    margin-bottom: 1;
 }
 
 #oauth-status {
