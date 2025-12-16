@@ -524,6 +524,7 @@ body {
     margin: var(--qq-space-3) 0;
     animation: approvalPulse 2s ease infinite;
     position: relative;
+    transition: all var(--qq-transition-base);
 }
 
 @keyframes approvalPulse {
@@ -536,11 +537,74 @@ body {
     }
 }
 
+/* Executing State */
+.tool-approval.executing {
+    background: var(--qq-bg-surface);
+    border-color: var(--qq-accent-primary);
+    animation: none;
+}
+
+.tool-approval.executing .tool-approval-header {
+    color: var(--qq-accent-primary);
+}
+
+/* Completed State */
+.tool-approval.completed {
+    background: var(--qq-bg-surface);
+    border-color: var(--qq-accent-green);
+    animation: none;
+}
+
+.tool-approval.completed .tool-approval-header {
+    color: var(--qq-accent-green);
+}
+
+/* Rejected State */
+.tool-approval.rejected {
+    background: var(--qq-bg-surface);
+    border-color: var(--qq-text-muted);
+    animation: none;
+    opacity: 0.7;
+}
+
+.tool-approval.rejected .tool-approval-header {
+    color: var(--qq-text-muted);
+}
+
+/* Error State */
+.tool-approval.error {
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
+    border-color: var(--qq-accent-red);
+    animation: none;
+}
+
+.tool-approval.error .tool-approval-header {
+    color: var(--qq-accent-red);
+}
+
 .tool-approval-header {
+    display: flex;
+    align-items: center;
+    gap: var(--qq-space-2);
     font-weight: 700;
     font-size: 13px;
     color: var(--qq-accent-amber);
     margin-bottom: var(--qq-space-3);
+}
+
+.tool-approval-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tool-approval-icon.spinning svg {
+    animation: spin 1s linear infinite;
+}
+
+.tool-approval-title {
+    flex: 1;
 }
 
 .tool-approval-content {
@@ -553,6 +617,55 @@ body {
     margin-bottom: var(--qq-space-3);
     max-height: 120px;
     overflow-y: auto;
+    transition: all var(--qq-transition-base);
+}
+
+.tool-approval-content.collapsed {
+    display: none;
+}
+
+.tool-approval-error {
+    font-family: var(--qq-font-mono);
+    font-size: 11px;
+    color: var(--qq-accent-red);
+    background: var(--qq-bg-primary);
+    padding: var(--qq-space-3);
+    border-radius: var(--qq-radius-md);
+    margin-top: var(--qq-space-2);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Toggle for expandable content */
+.tool-approval-toggle {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    transition: transform var(--qq-transition-fast), opacity var(--qq-transition-fast);
+    transform: rotate(-90deg);
+}
+
+.tool-approval.expanded .tool-approval-toggle {
+    transform: rotate(0);
+}
+
+.tool-approval-header:hover .tool-approval-toggle {
+    opacity: 1;
+}
+
+/* When completed/rejected/error, no bottom margin on header if content is hidden */
+.tool-approval.completed .tool-approval-header,
+.tool-approval.rejected .tool-approval-header,
+.tool-approval.error .tool-approval-header {
+    margin-bottom: 0;
+}
+
+/* Show margin when expanded */
+.tool-approval.completed.expanded .tool-approval-header,
+.tool-approval.rejected.expanded .tool-approval-header,
+.tool-approval.error.expanded .tool-approval-header {
+    margin-bottom: var(--qq-space-3);
 }
 
 .tool-approval-actions {
@@ -592,24 +705,6 @@ body {
     background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
     color: var(--qq-accent-red);
     border-color: var(--qq-accent-red);
-}
-
-.approval-resolved {
-    padding: var(--qq-space-2) var(--qq-space-3);
-    border-radius: var(--qq-radius-md);
-    font-weight: 600;
-    font-size: 12px;
-    text-align: center;
-}
-
-.approval-resolved.approved {
-    background: var(--vscode-inputValidation-infoBackground, var(--qq-bg-surface));
-    color: var(--qq-accent-green);
-}
-
-.approval-resolved.rejected {
-    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
-    color: var(--qq-accent-red);
 }
 
 /* Plan Approval */
