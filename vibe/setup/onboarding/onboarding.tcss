@@ -304,6 +304,30 @@ ApiKeyScreen #enter-hint {
     text-align: center;
 }
 
+#oauth-section {
+    width: auto;
+    height: auto;
+    margin-top: 2;
+}
+
+#oauth-section.hidden {
+    display: none;
+}
+
+#oauth-title {
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#oauth-hint {
+    text-align: center;
+}
+
+#oauth-status {
+    text-align: center;
+    margin-top: 1;
+}
+
 #provider-link-row.hidden {
     display: none;
 }
