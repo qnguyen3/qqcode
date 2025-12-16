@@ -26,6 +26,7 @@ from vibe.setup.onboarding.base import OnboardingScreen
 PROVIDER_HELP = {
     "mistral": ("https://console.mistral.ai/codestral/vibe", "Mistral AI Console"),
     "openrouter": ("https://openrouter.ai/keys", "OpenRouter Dashboard"),
+    "zai": ("https://z.ai/manage-apikey/apikey-list", "Z.ai Dashboard"),
 }
 
 PROVIDER_DISPLAY_NAMES = {
@@ -33,6 +34,7 @@ PROVIDER_DISPLAY_NAMES = {
     "openrouter": "OpenRouter",
     "llamacpp": "Local (llama.cpp)",
     "anthropic": "Anthropic (Subscription)",
+    "zai": "Z.ai",
 }
 
 DEFAULT_MODELS_BY_PROVIDER = {
@@ -40,14 +42,13 @@ DEFAULT_MODELS_BY_PROVIDER = {
     "openrouter": "openrouter/gpt-5.2",
     "llamacpp": "local",
     "anthropic": "claude-sonnet-4.5",
+    "zai": "zai/glm-4.6",
 }
 
 # Providers that support OAuth login
 OAUTH_PROVIDERS = {"anthropic"}
 
-CONFIG_DOCS_URL = (
-    "https://github.com/qnguyen3/qqcode?tab=readme-ov-file#configuration"
-)
+CONFIG_DOCS_URL = "https://github.com/qnguyen3/qqcode?tab=readme-ov-file#configuration"
 
 VISIBLE_NEIGHBORS = 1
 FADE_CLASSES = ["fade-1"]
@@ -386,8 +387,7 @@ class ApiKeyScreen(OnboardingScreen):
             # Create and mount the input
             oauth_section = self.query_one("#oauth-section", Vertical)
             code_input = Input(
-                id="oauth-code-input",
-                placeholder="Paste authorization code here",
+                id="oauth-code-input", placeholder="Paste authorization code here"
             )
             oauth_section.mount(code_input, after=oauth_status)
 
@@ -425,7 +425,9 @@ class ApiKeyScreen(OnboardingScreen):
             self.app.exit("completed")
 
         except Exception as e:
-            oauth_status.update(f"[red]Error: {escape(str(e))}[/red]\n\nPress Enter to try again.")
+            oauth_status.update(
+                f"[red]Error: {escape(str(e))}[/red]\n\nPress Enter to try again."
+            )
 
     def on_mouse_up(self, event: MouseUp) -> None:
         copy_selection_to_clipboard(self.app)

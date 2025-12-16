@@ -294,11 +294,6 @@ DEFAULT_PROVIDERS = [
         api_base="https://api.z.ai/api/coding/paas/v4",
         api_key_env_var="ZAI_API_KEY",
     ),
-    ProviderConfig(
-        name="openai",
-        api_base="https://api.openai.com/v1",
-        api_key_env_var="OPENAI_API_KEY",
-    ),
 ]
 
 DEFAULT_MODELS = [
