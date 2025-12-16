@@ -131,11 +131,87 @@ class AnthropicMapper:
 
         return system_parts, anthropic_messages
 
+    def add_cache_control_to_messages(
+        self, messages: list[anthropic.types.MessageParam]
+    ) -> list[anthropic.types.MessageParam]:
+        """Add cache_control to the last content block of the second-to-last message.
+
+        This enables caching of the conversation history up to the current turn.
+        We cache the second-to-last message (not the last) because the last message
+        is typically the current user input which may change.
+
+        For agentic workflows:
+        - Turn 1: [User1] -> cache at User1
+        - Turn 2: [User1+cache_hit] [Asst1] [User2] -> cache at Asst1, User1 is cache hit
+        - Turn 3: [User1+Asst1:cache_hit] [User2] [Asst2] [User3] -> cache at User2
+        """
+        if len(messages) < 2:
+            # Need at least 2 messages to cache history
+            return messages
+
+        # Work on a copy to avoid mutating the original
+        messages = list(messages)
+
+        # Target the second-to-last message for cache control
+        target_idx = len(messages) - 2
+        target_msg = messages[target_idx]
+        content = target_msg["content"]
+
+        if isinstance(content, str):
+            # Convert string content to list with cache control
+            messages[target_idx] = {
+                "role": target_msg["role"],
+                "content": [
+                    {
+                        "type": "text",
+                        "text": content,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+            }
+        elif isinstance(content, list) and len(content) > 0:
+            # Add cache_control to the last content block
+            content = list(content)  # Copy the list
+            last_block = dict(content[-1])  # Copy the last block
+
+            # Check if this block type supports cache_control
+            block_type = last_block.get("type", "")
+            if block_type in ("text", "tool_result"):
+                # These types support cache_control
+                last_block["cache_control"] = {"type": "ephemeral"}
+                content[-1] = last_block  # type: ignore[call-overload]
+            else:
+                # tool_use and thinking blocks don't support cache_control
+                # Add an empty text block with cache_control
+                content.append({
+                    "type": "text",
+                    "text": "",
+                    "cache_control": {"type": "ephemeral"},
+                })
+
+            messages[target_idx] = {
+                "role": target_msg["role"],
+                "content": content,
+            }
+
+        return messages
+
     def prepare_system_blocks(
-        self, system_parts: list[str]
+        self, system_parts: list[str], enable_caching: bool = False
     ) -> list[anthropic.types.TextBlockParam]:
-        """Convert system parts to text blocks for the system field."""
-        return [{"type": "text", "text": part} for part in system_parts]
+        """Convert system parts to text blocks for the system field.
+
+        If enable_caching is True, adds cache_control to the last block
+        to enable Anthropic's prompt caching for the system prompt.
+        """
+        blocks: list[anthropic.types.TextBlockParam] = []
+        for i, part in enumerate(system_parts):
+            block: anthropic.types.TextBlockParam = {"type": "text", "text": part}
+            # Add cache control to the last system block
+            if enable_caching and i == len(system_parts) - 1:
+                block["cache_control"] = {"type": "ephemeral"}  # type: ignore[typeddict-item]
+            blocks.append(block)
+        return blocks
 
     def prepare_tools(
         self, tools: list[AvailableTool]
@@ -306,6 +382,11 @@ class AnthropicBackend:
                 messages, is_oauth=self._is_oauth()
             )
 
+            # Enable prompt caching for system prompt and conversation history
+            anthropic_messages = self._mapper.add_cache_control_to_messages(
+                anthropic_messages
+            )
+
             kwargs: dict = {
                 "model": model.name,
                 "messages": anthropic_messages,
@@ -313,7 +394,9 @@ class AnthropicBackend:
             }
 
             if system_parts:
-                kwargs["system"] = self._mapper.prepare_system_blocks(system_parts)
+                kwargs["system"] = self._mapper.prepare_system_blocks(
+                    system_parts, enable_caching=True
+                )
             if temperature > 0:
                 kwargs["temperature"] = temperature
             if tools:
@@ -408,6 +491,11 @@ class AnthropicBackend:
                 messages, is_oauth=self._is_oauth()
             )
 
+            # Enable prompt caching for system prompt and conversation history
+            anthropic_messages = self._mapper.add_cache_control_to_messages(
+                anthropic_messages
+            )
+
             kwargs: dict = {
                 "model": model.name,
                 "messages": anthropic_messages,
@@ -415,7 +503,9 @@ class AnthropicBackend:
             }
 
             if system_parts:
-                kwargs["system"] = self._mapper.prepare_system_blocks(system_parts)
+                kwargs["system"] = self._mapper.prepare_system_blocks(
+                    system_parts, enable_caching=True
+                )
             if temperature > 0:
                 kwargs["temperature"] = temperature
             if tools:
