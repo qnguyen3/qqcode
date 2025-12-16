@@ -501,12 +501,25 @@ class VibeApp(App):
             VibeConfig.save_updates(updates)
 
     async def _handle_command(self, user_input: str) -> bool:
-        if command := self.commands.find_command(user_input):
+        # Check if this is a command with arguments (e.g., /add-dir <path>)
+        command_word = user_input.split()[0] if user_input else ""
+        if command := self.commands.find_command(command_word):
             handler = getattr(self, command.handler)
+            # Check if handler accepts user_input parameter
+            import inspect
+            sig = inspect.signature(handler)
+            accepts_input = len(sig.parameters) > 0
+            
             if asyncio.iscoroutinefunction(handler):
-                await handler()
+                if accepts_input:
+                    await handler(user_input)
+                else:
+                    await handler()
             else:
-                handler()
+                if accepts_input:
+                    handler(user_input)
+                else:
+                    handler()
             return True
         return False
 
@@ -992,7 +1005,7 @@ class VibeApp(App):
     async def _exit_app(self) -> None:
         self.exit()
 
-    async def _add_directory_context(self) -> None:
+    async def _add_directory_context(self, user_input: str) -> None:
         """Add directory context to the conversation."""
         if not self.agent:
             await self._mount_and_scroll(
@@ -1003,11 +1016,8 @@ class VibeApp(App):
             )
             return
 
-        # Get the command input from the chat input container
-        chat_input = self.query_one(ChatInputContainer)
-        command_text = chat_input.value.strip()
-        
         # Extract directory path from command
+        command_text = user_input.strip()
         if command_text.startswith("/add-dir "):
             dir_path_str = command_text[len("/add-dir "):].strip()
         elif command_text.startswith("/add-directory "):
