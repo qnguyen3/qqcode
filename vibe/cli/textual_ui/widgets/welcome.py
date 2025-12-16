@@ -101,10 +101,9 @@ class WelcomeBanner(Static):
             f"{self.LOGO_TEXT_GAP}[dim]{self.config.active_model}[/]"
         )
         mcp_count = len(self.config.mcp_servers)
-        model_count = len(self.config.models)
         skill_manager = SkillManager(self.config)
         skill_count = len(skill_manager.get_available_skills())
-        self._static_line3_suffix = f"{self.LOGO_TEXT_GAP}[dim]{model_count} models · {mcp_count} MCP servers · {skill_count} skills[/]"
+        self._static_line3_suffix = f"{self.LOGO_TEXT_GAP}[dim]{mcp_count} MCP servers · {skill_count} skills[/]"
         self._static_line5_suffix = (
             f"{self.LOGO_TEXT_GAP}[dim]{self.config.effective_workdir}[/]"
         )
