@@ -122,11 +122,13 @@ export type PlanApprovalCompletePayload = {
 export type HistoricalToolCallPayload = {
   type: "historicalToolCall";
   toolName: string;
+  toolCallId: string;
   args: string; // JSON string of args for display
 };
 
 export type HistoricalToolResultPayload = {
   type: "historicalToolResult";
+  toolCallId: string;
   toolName: string;
   isError: boolean;
 };

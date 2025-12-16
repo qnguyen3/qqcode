@@ -498,21 +498,6 @@ body {
     border-radius: var(--qq-radius-sm);
 }
 
-/* Historical Tool Calls/Results (loaded from session history) */
-.tool-call.historical,
-.tool-result.historical {
-    opacity: 0.85;
-    animation: none;
-}
-
-.tool-result.historical {
-    padding: var(--qq-space-2) var(--qq-space-3);
-}
-
-.tool-result.historical .tool-result-header {
-    margin-bottom: 0;
-}
-
 /* ================================
    Tool & Plan Approval
    ================================ */
@@ -580,6 +565,12 @@ body {
 
 .tool-approval.error .tool-approval-header {
     color: var(--qq-accent-red);
+}
+
+/* Historical State - No pulse animation, slightly muted */
+.tool-approval.historical {
+    animation: none;
+    opacity: 0.9;
 }
 
 .tool-approval-header {

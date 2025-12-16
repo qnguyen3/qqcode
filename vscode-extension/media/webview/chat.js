@@ -29,6 +29,7 @@
   let isStreaming = false;
   let toolCallMap = new Map();
   let approvalMap = new Map(); // Track approval elements by toolCallId
+  let historicalToolMap = new Map(); // Track historical tool call elements by toolCallId
 
   // File completion state
   let completionState = {
@@ -262,10 +263,10 @@
         showToolResult(message.toolCallId, message.result, message.isError);
         break;
       case "historicalToolCall":
-        showHistoricalToolCall(message.toolName, message.args);
+        showHistoricalToolCall(message.toolName, message.toolCallId, message.args);
         break;
       case "historicalToolResult":
-        showHistoricalToolResult(message.toolName, message.isError);
+        showHistoricalToolResult(message.toolCallId, message.toolName, message.isError);
         break;
       case "toolApprovalRequired":
         showToolApproval(message.toolName, message.toolCallId, message.args);
@@ -582,36 +583,91 @@
     }
   }
 
-  function showHistoricalToolCall(toolName, argsStr) {
+  function showHistoricalToolCall(toolName, toolCallId, argsStr) {
+    const formattedName = formatToolName(toolName);
+    
+    // Create a combined tool element (similar to approval but already in completed state)
     const toolDiv = document.createElement("div");
-    toolDiv.className = "tool-call historical";
+    toolDiv.className = "tool-approval historical";
+    toolDiv.id = `historical-${toolCallId}`;
+    toolDiv.dataset.toolCallId = toolCallId;
+    toolDiv.dataset.toolName = toolName;
 
     const header = document.createElement("div");
-    header.className = "tool-call-header";
-    header.textContent = formatToolName(toolName);
+    header.className = "tool-approval-header";
+    // Start with a "pending" indicator that will be updated when result comes
+    header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span><span class="tool-approval-title">${formattedName}</span><span class="tool-approval-toggle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>`;
 
-    const argsDiv = document.createElement("div");
-    argsDiv.className = "tool-call-args";
-    argsDiv.textContent = formatHistoricalArgs(argsStr);
+    const contentDiv = document.createElement("div");
+    contentDiv.className = "tool-approval-content collapsed";
+    contentDiv.textContent = formatHistoricalArgs(argsStr);
+
+    // Make header clickable to toggle content
+    header.style.cursor = "pointer";
+    header.onclick = () => {
+      toolDiv.classList.toggle("expanded");
+      contentDiv.classList.toggle("collapsed");
+    };
 
     toolDiv.appendChild(header);
-    toolDiv.appendChild(argsDiv);
+    toolDiv.appendChild(contentDiv);
     messagesDiv.appendChild(toolDiv);
+    
+    // Track for later update when result comes
+    historicalToolMap.set(toolCallId, toolDiv);
+    
     scrollToBottom();
   }
 
-  function showHistoricalToolResult(toolName, isError) {
-    const resultDiv = document.createElement("div");
-    resultDiv.className = "tool-result historical" + (isError ? " error" : "");
+  function showHistoricalToolResult(toolCallId, toolName, isError) {
+    const toolDiv = historicalToolMap.get(toolCallId);
+    const formattedName = formatToolName(toolName);
+    
+    if (toolDiv) {
+      // Update the existing historical tool element
+      const header = toolDiv.querySelector(".tool-approval-header");
+      
+      // Update classes
+      toolDiv.classList.add(isError ? "error" : "completed");
+      
+      // Update header
+      if (header) {
+        const toggleIcon = `<span class="tool-approval-toggle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>`;
+        
+        if (isError) {
+          header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName} failed</span>${toggleIcon}`;
+        } else {
+          header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName} completed</span>${toggleIcon}`;
+        }
+        
+        // Re-attach click handler
+        const contentDiv = toolDiv.querySelector(".tool-approval-content");
+        header.style.cursor = "pointer";
+        header.onclick = () => {
+          toolDiv.classList.toggle("expanded");
+          if (contentDiv) {
+            contentDiv.classList.toggle("collapsed");
+          }
+        };
+      }
+      
+      // Clean up from map
+      historicalToolMap.delete(toolCallId);
+    } else {
+      // Fallback: create a standalone result if no matching call found
+      const resultDiv = document.createElement("div");
+      resultDiv.className = "tool-approval historical " + (isError ? "error" : "completed");
 
-    const header = document.createElement("div");
-    header.className = "tool-result-header";
-    header.innerHTML = isError
-      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error`
-      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Done`;
+      const header = document.createElement("div");
+      header.className = "tool-approval-header";
+      header.innerHTML = isError
+        ? `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName} failed</span>`
+        : `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName} completed</span>`;
 
-    resultDiv.appendChild(header);
-    messagesDiv.appendChild(resultDiv);
+      resultDiv.appendChild(header);
+      messagesDiv.appendChild(resultDiv);
+    }
+    
     scrollToBottom();
   }
 
@@ -786,6 +842,7 @@
     currentThinkingElement = null;
     toolCallMap.clear();
     approvalMap.clear();
+    historicalToolMap.clear();
     setStreamingState(false);
   }
 
