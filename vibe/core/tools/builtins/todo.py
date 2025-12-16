@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from enum import StrEnum, auto
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from vibe.core.tools.base import (
     BaseTool,
@@ -41,6 +42,41 @@ class TodoArgs(BaseModel):
     todos: list[TodoItem] | None = Field(
         default=None, description="Complete list of todos when writing."
     )
+
+    @field_validator("todos", mode="before")
+    @classmethod
+    def parse_todos_field(cls, v: Any) -> list[TodoItem] | None:
+        """Handle string input for todos field (hot fix for GLM model).
+        
+        The GLM model from Z.ai sometimes passes the todos parameter as a string
+        instead of a list. This validator attempts to parse it as JSON and convert
+        it to the proper list format.
+        """
+        if v is None:
+            return None
+            
+        # If it's already a list, return as is
+        if isinstance(v, list):
+            return v
+            
+        # If it's a string, try to parse it as JSON
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+                raise ValueError("Parsed JSON is not a list")
+            except (json.JSONDecodeError, ValueError) as e:
+                raise ValueError(
+                    f"Invalid todos format. Expected a list or JSON string representing a list. "
+                    f"Error: {e}"
+                )
+        
+        # If it's neither None, list, nor string, raise an error
+        raise ValueError(
+            f"Invalid todos format. Expected a list or JSON string representing a list, "
+            f"got {type(v).__name__}"
+        )
 
 
 class TodoResult(BaseModel):
