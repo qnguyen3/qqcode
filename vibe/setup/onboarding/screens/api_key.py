@@ -20,7 +20,14 @@ from vibe.core.config import (
     VibeConfig,
     save_oauth_token,
 )
-from vibe.core.oauth import exchange_token, get_authorize_url, get_pkce_challenge
+from vibe.core.oauth import (
+    exchange_token,
+    get_authorize_url,
+    get_pkce_challenge,
+    qwen_get_pkce_challenge,
+    qwen_poll_for_token,
+    qwen_request_device_code,
+)
 from vibe.setup.onboarding.base import OnboardingScreen
 
 PROVIDER_HELP = {
@@ -35,6 +42,7 @@ PROVIDER_DISPLAY_NAMES = {
     "llamacpp": "Local (llama.cpp)",
     "anthropic": "Anthropic (Subscription)",
     "zai": "Z.ai",
+    "qwen": "Qwen (OAuth)",
 }
 
 DEFAULT_MODELS_BY_PROVIDER = {
@@ -43,10 +51,11 @@ DEFAULT_MODELS_BY_PROVIDER = {
     "llamacpp": "local",
     "anthropic": "claude-sonnet-4.5",
     "zai": "zai/glm-4.6",
+    "qwen": "qwen-coder-plus",
 }
 
 # Providers that support OAuth login
-OAUTH_PROVIDERS = {"anthropic"}
+OAUTH_PROVIDERS = {"anthropic", "qwen"}
 
 CONFIG_DOCS_URL = "https://github.com/qnguyen3/qqcode?tab=readme-ov-file#configuration"
 
@@ -77,6 +86,7 @@ class ApiKeyScreen(OnboardingScreen):
         self._provider_index = 0
         self._provider_widgets: list[Static] = []
         self._oauth_verifier: str | None = None
+        self._qwen_polling_cancelled: bool = False
 
         # Set initial selection based on current active model
         active_model = self.config.get_active_model()
@@ -276,6 +286,11 @@ class ApiKeyScreen(OnboardingScreen):
         self._update_provider_display()
         self._update_focus()
 
+    def action_cancel(self) -> None:
+        # Cancel Qwen polling if in progress
+        self._qwen_polling_cancelled = True
+        super().action_cancel()
+
     def on_input_changed(self, event: Input.Changed) -> None:
         feedback = self.query_one("#feedback", Static)
         input_box = self.query_one("#input-box")
@@ -352,7 +367,14 @@ class ApiKeyScreen(OnboardingScreen):
         self.app.exit("completed")
 
     def _start_oauth_flow(self) -> None:
-        """Start the OAuth flow for Anthropic."""
+        """Start the OAuth flow based on provider type."""
+        if self.provider.name == "qwen":
+            self._start_qwen_oauth_flow()
+        else:
+            self._start_anthropic_oauth_flow()
+
+    def _start_anthropic_oauth_flow(self) -> None:
+        """Start the OAuth flow for Anthropic (authorization code flow)."""
         oauth_status = self.query_one("#oauth-status", Static)
         oauth_status.update("[dim]Opening browser for authentication...[/dim]")
 
@@ -368,6 +390,77 @@ class ApiKeyScreen(OnboardingScreen):
 
         # Create a new input widget for the OAuth code
         self._show_oauth_code_input(url)
+
+    def _start_qwen_oauth_flow(self) -> None:
+        """Start the OAuth flow for Qwen (device authorization flow)."""
+        oauth_status = self.query_one("#oauth-status", Static)
+        oauth_status.update("[dim]Requesting device authorization...[/dim]")
+
+        # Reset cancellation flag
+        self._qwen_polling_cancelled = False
+
+        # Start the device flow in background
+        self.run_worker(self._do_qwen_device_flow(), exclusive=True)
+
+    async def _do_qwen_device_flow(self) -> None:
+        """Perform the Qwen device authorization flow asynchronously."""
+        oauth_status = self.query_one("#oauth-status", Static)
+
+        try:
+            # Generate PKCE challenge
+            self._oauth_verifier, challenge = qwen_get_pkce_challenge()
+
+            # Request device code
+            device_response = await qwen_request_device_code(challenge)
+
+            # Show verification URL and open browser
+            escaped_url = escape(device_response.verification_uri_complete[:70])
+            oauth_status.update(
+                f"[dim]Please authorize in your browser.[/dim]\n\n"
+                f"If browser didn't open, visit:\n{escaped_url}...\n\n"
+                "[dim]Waiting for authorization...[/dim]"
+            )
+
+            # Try to open browser
+            try:
+                webbrowser.open(device_response.verification_uri_complete)
+            except Exception:
+                pass
+
+            # Define status callback (updates happen in same thread context)
+            def status_callback(status: str) -> None:
+                oauth_status.update(f"[dim]{status}[/dim]")
+
+            # Define cancel check
+            def cancel_check() -> bool:
+                return self._qwen_polling_cancelled
+
+            # Poll for token
+            token = await qwen_poll_for_token(
+                device_code=device_response.device_code,
+                verifier=self._oauth_verifier,
+                expires_in=device_response.expires_in,
+                status_callback=status_callback,
+                cancel_check=cancel_check,
+            )
+
+            # Save token and finish
+            save_oauth_token("qwen", token)
+            self._save_provider_selection()
+            self.app.exit("completed")
+
+        except Exception as e:
+            error_msg = str(e)
+            if "cancelled" in error_msg.lower():
+                oauth_status.update("[yellow]Authorization cancelled.[/yellow]")
+            elif "timeout" in error_msg.lower():
+                oauth_status.update(
+                    "[red]Authorization timed out.[/red]\n\nPress Enter to try again."
+                )
+            else:
+                oauth_status.update(
+                    f"[red]Error: {escape(error_msg)}[/red]\n\nPress Enter to try again."
+                )
 
     def _show_oauth_code_input(self, url: str) -> None:
         """Show the OAuth code input field."""

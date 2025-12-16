@@ -99,8 +99,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--login",
         metavar="PROVIDER",
-        choices=["anthropic"],
-        help="Login to a provider using OAuth (e.g., --login anthropic)",
+        choices=["anthropic", "qwen"],
+        help="Login to a provider using OAuth (e.g., --login anthropic, --login qwen)",
     )
     parser.add_argument(
         "--list-sessions",
@@ -188,6 +188,10 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             from vibe.cli.login import login_anthropic
 
             login_anthropic()
+        elif args.login == "qwen":
+            from vibe.cli.login import login_qwen
+
+            login_qwen()
         sys.exit(0)
     try:
         if not CONFIG_FILE.exists():

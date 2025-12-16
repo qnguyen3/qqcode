@@ -488,14 +488,16 @@ class GenericBackend:
             self._owns_client = True
         return self._client
 
-    async def _get_auth_info(self) -> tuple[str | None, dict[str, str]]:
-        """Get API key and extra headers, handling OAuth tokens.
+    async def _get_auth_info(self) -> tuple[str | None, dict[str, str], str | None]:
+        """Get API key, extra headers, and optional API base override.
 
         Returns:
-            Tuple of (api_key, extra_headers) where api_key may be a Bearer token
-            for OAuth authentication.
+            Tuple of (api_key, extra_headers, api_base_override) where:
+            - api_key may be a Bearer token for OAuth authentication
+            - api_base_override is the URL to use instead of provider.api_base (for Qwen OAuth)
         """
         extra_headers: dict[str, str] = {}
+        api_base_override: str | None = None
 
         # Check for OAuth token first
         if self._provider.oauth_token:
@@ -506,10 +508,21 @@ class GenericBackend:
             if self._provider.oauth_token and not self._provider.oauth_token.is_expired():
                 # OAuth token is valid - use Bearer auth
                 api_key = self._provider.oauth_token.access_token
-                # Add required Anthropic OAuth headers
-                extra_headers["anthropic-version"] = "2023-06-01"
-                extra_headers["anthropic-beta"] = "oauth-2025-04-20"
-                return api_key, extra_headers
+                # Add provider-specific OAuth headers
+                if self._provider.name == "anthropic":
+                    extra_headers["anthropic-version"] = "2023-06-01"
+                    extra_headers["anthropic-beta"] = "oauth-2025-04-20"
+                # Qwen OAuth: use resource_url as API base if available
+                elif self._provider.name == "qwen":
+                    resource_url = getattr(self._provider.oauth_token, "resource_url", None)
+                    if resource_url:
+                        # Ensure URL has https:// prefix and /v1 suffix
+                        if not resource_url.startswith("http"):
+                            resource_url = f"https://{resource_url}"
+                        if not resource_url.endswith("/v1"):
+                            resource_url = f"{resource_url}/v1"
+                        api_base_override = resource_url
+                return api_key, extra_headers, api_base_override
 
         # Fall back to API key from env var
         api_key = (
@@ -517,7 +530,7 @@ class GenericBackend:
             if self._provider.api_key_env_var
             else None
         )
-        return api_key, extra_headers
+        return api_key, extra_headers, api_base_override
 
     async def _refresh_oauth_token(self) -> None:
         """Refresh the OAuth token if it's expired."""
@@ -526,9 +539,19 @@ class GenericBackend:
 
         try:
             from vibe.core.config import save_oauth_token
-            from vibe.core.oauth.claude import refresh_token
 
-            new_token = await refresh_token(self._provider.oauth_token.refresh_token)
+            if self._provider.name == "qwen":
+                from vibe.core.oauth.qwen import refresh_token as qwen_refresh
+
+                new_token = await qwen_refresh(
+                    self._provider.oauth_token.refresh_token
+                )
+            else:
+                from vibe.core.oauth.claude import refresh_token
+
+                new_token = await refresh_token(
+                    self._provider.oauth_token.refresh_token
+                )
             # Update in-memory token
             self._provider.oauth_token = new_token
             # Persist to config
@@ -548,7 +571,7 @@ class GenericBackend:
         tool_choice: StrToolChoice | AvailableTool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> LLMChunk:
-        api_key, oauth_headers = await self._get_auth_info()
+        api_key, oauth_headers, api_base_override = await self._get_auth_info()
 
         api_style = getattr(self._provider, "api_style", "openai")
         adapter = BACKEND_ADAPTERS[api_style]
@@ -573,7 +596,8 @@ class GenericBackend:
         if extra_headers:
             headers.update(extra_headers)
 
-        url = f"{self._provider.api_base}{endpoint}"
+        api_base = api_base_override or self._provider.api_base
+        url = f"{api_base}{endpoint}"
 
         try:
             res_data, _ = await self._make_request(url, body, headers)
@@ -614,7 +638,7 @@ class GenericBackend:
         tool_choice: StrToolChoice | AvailableTool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncGenerator[LLMChunk, None]:
-        api_key, oauth_headers = await self._get_auth_info()
+        api_key, oauth_headers, api_base_override = await self._get_auth_info()
 
         api_style = getattr(self._provider, "api_style", "openai")
         adapter = BACKEND_ADAPTERS[api_style]
@@ -639,7 +663,8 @@ class GenericBackend:
         if extra_headers:
             headers.update(extra_headers)
 
-        url = f"{self._provider.api_base}{endpoint}"
+        api_base = api_base_override or self._provider.api_base
+        url = f"{api_base}{endpoint}"
 
         try:
             async for res_data in self._make_streaming_request(url, body, headers):

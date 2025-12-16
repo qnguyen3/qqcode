@@ -19,7 +19,7 @@ from pydantic_settings import (
 )
 import tomli_w
 
-from vibe.core.oauth.token import OAuthToken
+from vibe.core.oauth.token import OAuthToken, QwenOAuthToken
 from vibe.core.prompts import SystemPrompt
 from vibe.core.tools.base import BaseToolConfig
 
@@ -160,7 +160,7 @@ class ProviderConfig(BaseModel):
     api_key_env_var: str = ""
     api_style: str = "openai"
     backend: Backend = Backend.GENERIC
-    oauth_token: OAuthToken | None = None
+    oauth_token: OAuthToken | QwenOAuthToken | None = None
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
@@ -294,6 +294,13 @@ DEFAULT_PROVIDERS = [
         api_base="https://api.z.ai/api/coding/paas/v4",
         api_key_env_var="ZAI_API_KEY",
     ),
+    ProviderConfig(
+        name="qwen",
+        api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        api_key_env_var="DASHSCOPE_API_KEY",
+        api_style="openai",
+        backend=Backend.GENERIC,
+    ),
 ]
 
 DEFAULT_MODELS = [
@@ -388,6 +395,17 @@ DEFAULT_MODELS = [
     ModelConfig(name="glm-4.6", provider="zai", alias="zai/glm-4.6"),
     ModelConfig(name="glm-4.5", provider="zai", alias="zai/glm-4.5"),
     ModelConfig(name="glm-4.5-air", provider="zai", alias="zai/glm-4.5-air"),
+    # Qwen models (via Qwen OAuth or DashScope API key)
+    ModelConfig(
+        name="qwen3-coder-plus",
+        provider="qwen",
+        alias="qwen-coder-plus",
+    ),
+    ModelConfig(
+        name="qwen3-coder-flash",
+        provider="qwen",
+        alias="qwen-coder-flash",
+    ),
 ]
 
 
