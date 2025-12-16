@@ -158,6 +158,7 @@ class InteractionLogger:
         stats: AgentStats,
         config: VibeConfig,
         tool_manager: ToolManager,
+        additional_directory_contexts: list[Path] | None = None,
     ) -> str | None:
         if not self.enabled or self.filepath is None:
             return None
@@ -187,6 +188,7 @@ class InteractionLogger:
                 "total_messages": len(messages),
                 "tools_available": tools_available,
                 "agent_config": config.model_dump(mode="json"),
+                "additional_directory_contexts": [str(path) for path in additional_directory_contexts] if additional_directory_contexts else [],
             },
             "messages": [m.model_dump(exclude_none=True) for m in messages],
         }

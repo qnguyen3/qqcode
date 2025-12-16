@@ -380,6 +380,7 @@ def get_universal_system_prompt(
     config: VibeConfig,
     skill_manager: SkillManager | None = None,
     mode: str | None = None,
+    additional_directory_contexts: list[Path] | None = None,
 ) -> str:
     sections = [config.system_prompt]
 
@@ -432,5 +433,17 @@ def get_universal_system_prompt(
         )
         if project_doc.strip():
             sections.append(project_doc)
+
+    # Add additional directory contexts if provided
+    if additional_directory_contexts:
+        for i, dir_path in enumerate(additional_directory_contexts):
+            if dir_path.exists() and dir_path.is_dir():
+                try:
+                    additional_context = ProjectContextProvider(
+                        config=config.project_context, root_path=dir_path
+                    ).get_full_context()
+                    sections.append(f"\n## Additional Directory Context {i+1}: {dir_path}\n{additional_context}")
+                except Exception as e:
+                    sections.append(f"\n## Additional Directory Context {i+1}: {dir_path}\nError loading context: {e}")
 
     return "\n\n".join(sections)
