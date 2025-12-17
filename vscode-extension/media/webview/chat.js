@@ -505,7 +505,7 @@
   function showToolResult(toolCallId, result, isError) {
     // Check if there's an existing approval element to transform
     const approvalDiv = approvalMap.get(toolCallId);
-    
+
     if (approvalDiv) {
       // Transform the approval element to show result
       transformApprovalToResult(approvalDiv, result, isError);
@@ -541,21 +541,21 @@
     const formattedName = formatToolName(toolName);
     const header = approvalDiv.querySelector(".tool-approval-header");
     const contentDiv = approvalDiv.querySelector(".tool-approval-content");
-    
+
     // Update classes
     approvalDiv.classList.remove("executing");
     approvalDiv.classList.add(isError ? "error" : "completed");
-    
+
     // Update header with toggle indicator
     if (header) {
       const toggleIcon = `<span class="tool-approval-toggle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>`;
-      
+
       if (isError) {
-        header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName} failed</span>${toggleIcon}`;
+        header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName}</span>${toggleIcon}`;
       } else {
-        header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName} completed</span>${toggleIcon}`;
+        header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName}</span>${toggleIcon}`;
       }
-      
+
       // Make header clickable to toggle content
       header.style.cursor = "pointer";
       header.onclick = () => {
@@ -565,12 +565,12 @@
         }
       };
     }
-    
+
     // Collapse the args by default
     if (contentDiv) {
       contentDiv.classList.add("collapsed");
     }
-    
+
     // For errors, show the error message
     if (isError && result) {
       const errorPreview = document.createElement("div");
@@ -585,7 +585,7 @@
 
   function showHistoricalToolCall(toolName, toolCallId, argsStr) {
     const formattedName = formatToolName(toolName);
-    
+
     // Create a combined tool element (similar to approval but already in completed state)
     const toolDiv = document.createElement("div");
     toolDiv.className = "tool-approval historical";
@@ -612,34 +612,34 @@
     toolDiv.appendChild(header);
     toolDiv.appendChild(contentDiv);
     messagesDiv.appendChild(toolDiv);
-    
+
     // Track for later update when result comes
     historicalToolMap.set(toolCallId, toolDiv);
-    
+
     scrollToBottom();
   }
 
   function showHistoricalToolResult(toolCallId, toolName, isError) {
     const toolDiv = historicalToolMap.get(toolCallId);
     const formattedName = formatToolName(toolName);
-    
+
     if (toolDiv) {
       // Update the existing historical tool element
       const header = toolDiv.querySelector(".tool-approval-header");
-      
+
       // Update classes
       toolDiv.classList.add(isError ? "error" : "completed");
-      
+
       // Update header
       if (header) {
         const toggleIcon = `<span class="tool-approval-toggle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>`;
-        
+
         if (isError) {
-          header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName} failed</span>${toggleIcon}`;
+          header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName}</span>${toggleIcon}`;
         } else {
-          header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName} completed</span>${toggleIcon}`;
+          header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName}</span>${toggleIcon}`;
         }
-        
+
         // Re-attach click handler
         const contentDiv = toolDiv.querySelector(".tool-approval-content");
         header.style.cursor = "pointer";
@@ -650,7 +650,7 @@
           }
         };
       }
-      
+
       // Clean up from map
       historicalToolMap.delete(toolCallId);
     } else {
@@ -661,13 +661,13 @@
       const header = document.createElement("div");
       header.className = "tool-approval-header";
       header.innerHTML = isError
-        ? `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName} failed</span>`
-        : `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName} completed</span>`;
+        ? `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName}</span>`
+        : `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName}</span>`;
 
       resultDiv.appendChild(header);
       messagesDiv.appendChild(resultDiv);
     }
-    
+
     scrollToBottom();
   }
 
@@ -727,10 +727,10 @@
     approvalDiv.appendChild(contentDiv);
     approvalDiv.appendChild(actionsDiv);
     messagesDiv.appendChild(approvalDiv);
-    
+
     // Track approval element for later transformation
     approvalMap.set(toolCallId, approvalDiv);
-    
+
     scrollToBottom();
   }
 
@@ -745,19 +745,19 @@
     const header = approvalDiv.querySelector(".tool-approval-header");
     const actionsDiv = approvalDiv.querySelector(".tool-approval-actions");
     const formattedName = formatToolName(toolName || approvalDiv.dataset.toolName || "Tool");
-    
+
     // Stop the pulse animation
     approvalDiv.style.animation = "none";
-    
+
     if (approved) {
       // Transform to executing state
       approvalDiv.classList.remove("tool-approval");
       approvalDiv.classList.add("tool-approval", "executing");
-      
+
       if (header) {
         header.innerHTML = `<span class="tool-approval-icon spinning"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg></span><span class="tool-approval-title">Running ${formattedName}...</span>`;
       }
-      
+
       if (actionsDiv) {
         actionsDiv.remove();
       }
@@ -765,21 +765,21 @@
       // Transform to rejected state immediately
       approvalDiv.classList.remove("tool-approval");
       approvalDiv.classList.add("tool-approval", "rejected");
-      
+
       if (header) {
         header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span class="tool-approval-title">${formattedName} rejected</span>`;
       }
-      
+
       if (actionsDiv) {
         actionsDiv.remove();
       }
-      
+
       // Collapse content for rejected
       const contentDiv = approvalDiv.querySelector(".tool-approval-content");
       if (contentDiv) {
         contentDiv.classList.add("collapsed");
       }
-      
+
       // Clean up from map since no result is coming
       approvalMap.delete(toolCallId);
     }
