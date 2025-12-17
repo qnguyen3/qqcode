@@ -603,16 +603,20 @@ body {
 }
 
 .tool-approval-content {
+    display: block;
+    width: 100%;
     font-family: var(--qq-font-mono);
     font-size: 11px;
     color: var(--qq-text-secondary);
     background: var(--qq-bg-primary);
     padding: var(--qq-space-3);
     border-radius: var(--qq-radius-md);
-    margin-bottom: var(--qq-space-3);
+    margin-top: var(--qq-space-3);
+    margin-bottom: 0;
     max-height: 120px;
     overflow-y: auto;
-    transition: all var(--qq-transition-base);
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 
 .tool-approval-content.collapsed {
