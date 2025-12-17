@@ -580,13 +580,15 @@
       contentDiv.classList.add("collapsed");
     }
 
-    // For errors, show the error message
+    // For errors, show a compact error preview
     if (isError && result) {
       const errorPreview = document.createElement("div");
       errorPreview.className = "tool-approval-error";
-      const truncatedResult = result.length > 200
-        ? result.substring(0, 200) + "..."
-        : result;
+      // Keep error preview short - first line only, max 80 chars
+      const firstLine = result.split('\n')[0].trim();
+      const truncatedResult = firstLine.length > 80
+        ? firstLine.substring(0, 80) + "..."
+        : firstLine;
       errorPreview.textContent = truncatedResult;
       approvalDiv.appendChild(errorPreview);
     }

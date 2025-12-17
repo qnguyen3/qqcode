@@ -620,11 +620,13 @@ body {
     font-size: 11px;
     color: var(--qq-accent-red);
     background: var(--qq-bg-primary);
-    padding: var(--qq-space-3);
+    padding: var(--qq-space-2) var(--qq-space-3);
     border-radius: var(--qq-radius-md);
     margin-top: var(--qq-space-2);
-    white-space: pre-wrap;
-    word-break: break-all;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 /* Toggle for expandable content */
