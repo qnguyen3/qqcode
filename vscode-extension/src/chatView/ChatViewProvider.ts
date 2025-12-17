@@ -623,6 +623,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     this.sendToWebview({
                       type: "historicalToolCall",
                       toolName: toolCall.function.name,
+                      toolCallId: toolCall.id || `historical-${Date.now()}-${Math.random()}`,
                       args: toolCall.function.arguments || "{}",
                     });
                   }
@@ -641,6 +642,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               );
               this.sendToWebview({
                 type: "historicalToolResult",
+                toolCallId: msg.tool_call_id || "",
                 toolName: msg.name || "tool",
                 isError: isError,
               });

@@ -1,42 +1,41 @@
 /* QQCode - Modern Developer Interface */
-/* A refined, technical aesthetic for professional coding assistants */
+/* Adapts to VS Code theme automatically */
 
 /* ================================
-   Design Tokens
+   Design Tokens - VS Code Theme Aware
    ================================ */
 :root {
-    /* Core Colors - Sophisticated Dark Theme */
-    --qq-bg-primary: #0d1117;
-    --qq-bg-elevated: #161b22;
-    --qq-bg-surface: #1c2128;
-    --qq-bg-hover: #21262d;
-    --qq-bg-input: #0d1117;
+    /* Core Colors - Mapped to VS Code theme variables */
+    --qq-bg-primary: var(--vscode-editor-background);
+    --qq-bg-elevated: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    --qq-bg-surface: var(--vscode-input-background, var(--vscode-editor-background));
+    --qq-bg-hover: var(--vscode-list-hoverBackground, var(--vscode-list-activeSelectionBackground));
+    --qq-bg-input: var(--vscode-input-background);
 
     /* Text Hierarchy */
-    --qq-text-primary: #e6edf3;
-    --qq-text-secondary: #8b949e;
-    --qq-text-muted: #6e7681;
-    --qq-text-inverse: #0d1117;
+    --qq-text-primary: var(--vscode-editor-foreground);
+    --qq-text-secondary: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+    --qq-text-muted: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+    --qq-text-inverse: var(--vscode-button-foreground, var(--vscode-editor-background));
 
-    /* Accent System */
-    --qq-accent-primary: #58a6ff;
-    --qq-accent-primary-dim: #1f6feb;
-    --qq-accent-primary-glow: rgba(88, 166, 255, 0.12);
-    --qq-accent-amber: #f0883e;
-    --qq-accent-amber-dim: #d18616;
-    --qq-accent-green: #3fb950;
-    --qq-accent-red: #f85149;
-    --qq-accent-purple: #a371f7;
+    /* Accent System - Using VS Code semantic colors */
+    --qq-accent-primary: var(--vscode-focusBorder, var(--vscode-button-background));
+    --qq-accent-primary-dim: var(--vscode-button-background, var(--vscode-focusBorder));
+    --qq-accent-primary-glow: var(--vscode-inputOption-activeBackground, rgba(0, 127, 212, 0.15));
+    --qq-accent-amber: var(--vscode-editorWarning-foreground, #f0883e);
+    --qq-accent-amber-dim: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground));
+    --qq-accent-green: var(--vscode-testing-iconPassed, var(--vscode-terminal-ansiGreen, #3fb950));
+    --qq-accent-red: var(--vscode-errorForeground, var(--vscode-inputValidation-errorBorder, #f85149));
+    --qq-accent-purple: var(--vscode-symbolIcon-functionForeground, var(--vscode-textLink-foreground, #a371f7));
 
     /* Borders & Dividers */
-    --qq-border-subtle: #21262d;
-    --qq-border-default: #30363d;
-    --qq-border-emphasis: #484f58;
+    --qq-border-subtle: var(--vscode-widget-border, var(--vscode-editorGroup-border));
+    --qq-border-default: var(--vscode-input-border, var(--vscode-widget-border));
+    --qq-border-emphasis: var(--vscode-focusBorder);
 
-    /* Typography */
-    --qq-font-ui:
-        "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-    --qq-font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    /* Typography - Use VS Code fonts */
+    --qq-font-ui: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, sans-serif);
+    --qq-font-mono: var(--vscode-editor-font-family, "SF Mono", Menlo, monospace);
 
     /* Spacing Scale */
     --qq-space-1: 4px;
@@ -53,10 +52,10 @@
     --qq-radius-lg: 8px;
     --qq-radius-xl: 12px;
 
-    /* Shadows */
-    --qq-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --qq-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --qq-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    /* Shadows - Adaptive to theme */
+    --qq-shadow-sm: var(--vscode-widget-shadow, 0 1px 2px rgba(0, 0, 0, 0.2));
+    --qq-shadow-md: var(--vscode-widget-shadow, 0 4px 12px rgba(0, 0, 0, 0.3));
+    --qq-shadow-lg: var(--vscode-widget-shadow, 0 8px 24px rgba(0, 0, 0, 0.4));
 
     /* Transitions */
     --qq-transition-fast: 120ms cubic-bezier(0.2, 0, 0.38, 0.9);
@@ -80,25 +79,14 @@ body {
     font-family: var(--qq-font-ui);
     font-size: 13px;
     line-height: 1.5;
-    background: var(--qq-bg-primary);
+    background: var(--qq-bg-elevated);
     color: var(--qq-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
 }
 
-/* Subtle grid background for depth */
-body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-image:
-        linear-gradient(rgba(88, 166, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(88, 166, 255, 0.015) 1px, transparent 1px);
-    background-size: 20px 20px;
-    pointer-events: none;
-    z-index: 0;
-}
+/* Removed custom grid background - using plain background for theme compatibility */
 
 /* ================================
    Compact Top Bar
@@ -186,19 +174,19 @@ body::before {
 #new-conversation-btn {
     background: var(--qq-accent-primary-dim);
     border-color: var(--qq-accent-primary-dim);
-    color: white;
+    color: var(--vscode-button-foreground, white);
 }
 
 #new-conversation-btn:hover {
     background: var(--qq-accent-primary);
     border-color: var(--qq-accent-primary);
-    box-shadow: 0 0 16px var(--qq-accent-primary-glow);
+    box-shadow: var(--qq-shadow-md);
 }
 
 #current-session-badge {
     padding: var(--qq-space-1) var(--qq-space-2);
     background: var(--qq-accent-primary-glow);
-    border: 1px solid rgba(88, 166, 255, 0.3);
+    border: 1px solid var(--qq-border-default);
     border-radius: var(--qq-radius-sm);
     font-family: var(--qq-font-mono);
     font-size: 10px;
@@ -307,7 +295,7 @@ body::before {
 }
 
 .message.user {
-    background: rgba(88, 166, 255, 0.06);
+    background: var(--vscode-textBlockQuote-background, var(--qq-bg-surface));
     border-left: 2px solid var(--qq-accent-primary);
     padding: var(--qq-space-3) var(--qq-space-4);
     margin: var(--qq-space-2) 0;
@@ -356,10 +344,10 @@ body::before {
 }
 
 .message.user code {
-    background: rgba(88, 166, 255, 0.15);
+    background: var(--vscode-textCodeBlock-background, var(--qq-bg-surface));
     padding: 2px 5px;
     border-radius: var(--qq-radius-sm);
-    color: var(--qq-accent-primary);
+    color: var(--vscode-textPreformat-foreground, var(--qq-accent-primary));
 }
 
 .message.assistant code:not(pre code) {
@@ -370,8 +358,8 @@ body::before {
 }
 
 .message.user pre {
-    background: rgba(13, 17, 23, 0.6);
-    border-color: rgba(88, 166, 255, 0.2);
+    background: var(--vscode-textCodeBlock-background, var(--qq-bg-primary));
+    border-color: var(--qq-border-default);
 }
 
 /* Message headings */
@@ -510,65 +498,181 @@ body::before {
     border-radius: var(--qq-radius-sm);
 }
 
-/* Historical Tool Calls/Results (loaded from session history) */
-.tool-call.historical,
-.tool-result.historical {
-    opacity: 0.85;
-    animation: none;
-}
-
-.tool-result.historical {
-    padding: var(--qq-space-2) var(--qq-space-3);
-}
-
-.tool-result.historical .tool-result-header {
-    margin-bottom: 0;
-}
-
 /* ================================
    Tool & Plan Approval
    ================================ */
 .tool-approval {
-    background: linear-gradient(
-        135deg,
-        rgba(240, 136, 62, 0.08) 0%,
-        var(--qq-bg-surface) 100%
-    );
+    display: flex;
+    flex-direction: column;
+    background: var(--vscode-inputValidation-warningBackground, var(--qq-bg-surface));
     border: 1px solid var(--qq-accent-amber-dim);
     border-radius: var(--qq-radius-lg);
     padding: var(--qq-space-4);
     margin: var(--qq-space-3) 0;
     animation: approvalPulse 2s ease infinite;
     position: relative;
+    transition: all var(--qq-transition-base);
+    overflow: hidden;
+    min-width: 0;
 }
 
 @keyframes approvalPulse {
     0%,
     100% {
-        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0.3);
+        box-shadow: 0 0 0 0 var(--vscode-inputValidation-warningBorder, var(--qq-accent-amber));
     }
     50% {
-        box-shadow: 0 0 0 3px rgba(240, 136, 62, 0.05);
+        box-shadow: 0 0 0 3px var(--vscode-inputValidation-warningBackground, transparent);
     }
 }
 
+/* Executing State */
+.tool-approval.executing {
+    background: var(--qq-bg-surface);
+    border-color: var(--qq-accent-primary);
+    animation: none;
+}
+
+.tool-approval.executing .tool-approval-header {
+    color: var(--qq-accent-primary);
+}
+
+/* Completed State */
+.tool-approval.completed {
+    background: var(--qq-bg-surface);
+    border-color: var(--qq-accent-green);
+    animation: none;
+}
+
+.tool-approval.completed .tool-approval-header {
+    color: var(--qq-accent-green);
+}
+
+/* Rejected State */
+.tool-approval.rejected {
+    background: var(--qq-bg-surface);
+    border-color: var(--qq-text-muted);
+    animation: none;
+    opacity: 0.7;
+}
+
+.tool-approval.rejected .tool-approval-header {
+    color: var(--qq-text-muted);
+}
+
+/* Error State */
+.tool-approval.error {
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
+    border-color: var(--qq-accent-red);
+    animation: none;
+}
+
+.tool-approval.error .tool-approval-header {
+    color: var(--qq-accent-red);
+}
+
+/* Historical State - No pulse animation, slightly muted */
+.tool-approval.historical {
+    animation: none;
+    opacity: 0.9;
+}
+
 .tool-approval-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--qq-space-2);
     font-weight: 700;
     font-size: 13px;
     color: var(--qq-accent-amber);
     margin-bottom: var(--qq-space-3);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tool-approval-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tool-approval-icon.spinning svg {
+    animation: spin 1s linear infinite;
+}
+
+.tool-approval-title {
+    flex: 0 0 auto;
 }
 
 .tool-approval-content {
+    display: block;
+    align-self: stretch;
     font-family: var(--qq-font-mono);
     font-size: 11px;
     color: var(--qq-text-secondary);
     background: var(--qq-bg-primary);
     padding: var(--qq-space-3);
     border-radius: var(--qq-radius-md);
-    margin-bottom: var(--qq-space-3);
+    margin-top: 0;
+    margin-bottom: 0;
     max-height: 120px;
     overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.tool-approval-content.collapsed {
+    display: none;
+}
+
+.tool-approval-error-inline {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--qq-font-mono);
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--qq-accent-red);
+    background: var(--qq-bg-primary);
+    padding: var(--qq-space-1) var(--qq-space-2);
+    border-radius: var(--qq-radius-sm);
+    margin-left: var(--qq-space-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Toggle for expandable content */
+.tool-approval-toggle {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    transition: transform var(--qq-transition-fast), opacity var(--qq-transition-fast);
+    transform: rotate(-90deg);
+}
+
+.tool-approval.expanded .tool-approval-toggle {
+    transform: rotate(0);
+}
+
+.tool-approval-header:hover .tool-approval-toggle {
+    opacity: 1;
+}
+
+/* When completed/rejected/error, no bottom margin on header if content is hidden */
+.tool-approval.completed .tool-approval-header,
+.tool-approval.rejected .tool-approval-header,
+.tool-approval.error .tool-approval-header {
+    margin-bottom: 0;
+}
+
+/* Show margin when expanded */
+.tool-approval.completed.expanded .tool-approval-header,
+.tool-approval.rejected.expanded .tool-approval-header,
+.tool-approval.error.expanded .tool-approval-header {
+    margin-bottom: var(--qq-space-3);
 }
 
 .tool-approval-actions {
@@ -590,12 +694,12 @@ body::before {
 
 .approve-btn {
     background: var(--qq-accent-green);
-    color: white;
+    color: var(--vscode-button-foreground, white);
 }
 
 .approve-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(63, 185, 80, 0.25);
+    box-shadow: var(--qq-shadow-md);
 }
 
 .reject-btn {
@@ -605,27 +709,9 @@ body::before {
 }
 
 .reject-btn:hover {
-    background: rgba(248, 81, 73, 0.1);
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
     color: var(--qq-accent-red);
     border-color: var(--qq-accent-red);
-}
-
-.approval-resolved {
-    padding: var(--qq-space-2) var(--qq-space-3);
-    border-radius: var(--qq-radius-md);
-    font-weight: 600;
-    font-size: 12px;
-    text-align: center;
-}
-
-.approval-resolved.approved {
-    background: rgba(63, 185, 80, 0.1);
-    color: var(--qq-accent-green);
-}
-
-.approval-resolved.rejected {
-    background: rgba(248, 81, 73, 0.1);
-    color: var(--qq-accent-red);
 }
 
 /* Plan Approval */
@@ -652,11 +738,7 @@ body::before {
 
 .plan-approval-header {
     padding: var(--qq-space-4);
-    background: linear-gradient(
-        135deg,
-        var(--qq-accent-primary-glow) 0%,
-        transparent 100%
-    );
+    background: var(--vscode-sideBarSectionHeader-background, var(--qq-bg-elevated));
     border-bottom: 1px solid var(--qq-border-default);
     font-size: 14px;
     font-weight: 700;
@@ -791,11 +873,11 @@ body::before {
 .plan-option-button:first-child {
     background: var(--qq-accent-green);
     border: none;
-    color: white;
+    color: var(--vscode-button-foreground, white);
 }
 
 .plan-option-button:first-child:hover {
-    box-shadow: 0 4px 12px rgba(63, 185, 80, 0.25);
+    box-shadow: var(--qq-shadow-md);
 }
 
 .plan-option-description {
@@ -853,14 +935,14 @@ body::before {
 
 .revision-submit-btn {
     background: var(--qq-accent-primary-dim);
-    color: white;
+    color: var(--vscode-button-foreground, white);
     border: none;
 }
 
 .revision-submit-btn:hover {
     background: var(--qq-accent-primary);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--qq-accent-primary-glow);
+    box-shadow: var(--qq-shadow-md);
 }
 
 .revision-cancel-btn {
@@ -934,11 +1016,7 @@ body::before {
    Error Messages
    ================================ */
 .error {
-    background: linear-gradient(
-        135deg,
-        rgba(248, 81, 73, 0.1) 0%,
-        var(--qq-bg-surface) 100%
-    );
+    background: var(--vscode-inputValidation-errorBackground, var(--qq-bg-surface));
     border: 1px solid var(--qq-accent-red);
     border-radius: var(--qq-radius-lg);
     padding: var(--qq-space-3) var(--qq-space-4);
@@ -1027,7 +1105,7 @@ body::before {
     align-items: center;
     justify-content: center;
     background: var(--qq-accent-primary-dim);
-    color: white;
+    color: var(--vscode-button-foreground, white);
     border: none;
     border-radius: var(--qq-radius-lg);
     cursor: pointer;
@@ -1038,7 +1116,7 @@ body::before {
 #send-btn:hover:not(:disabled) {
     background: var(--qq-accent-primary);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--qq-accent-primary-glow);
+    box-shadow: var(--qq-shadow-md);
 }
 
 #send-btn:active:not(:disabled) {
@@ -1129,27 +1207,7 @@ body::before {
     transform: translateY(1px);
 }
 
-.keyboard-hint {
-    font-size: 10px;
-    color: var(--qq-text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: var(--qq-space-2);
-    padding-top: var(--qq-space-2);
-    border-top: 1px solid var(--qq-border-subtle);
-    margin-top: var(--qq-space-2);
-}
 
-.keyboard-hint kbd {
-    background: var(--qq-bg-surface);
-    border: 1px solid var(--qq-border-default);
-    border-radius: 3px;
-    padding: 2px 5px;
-    font-family: var(--qq-font-mono);
-    font-size: 9px;
-    font-weight: 600;
-}
 
 /* ================================
    Mode Notification Toast
@@ -1169,9 +1227,7 @@ body::before {
     font-size: 14px;
     font-weight: 600;
     color: var(--qq-text-primary);
-    box-shadow:
-        var(--qq-shadow-lg),
-        0 0 0 1px rgba(88, 166, 255, 0.1);
+    box-shadow: var(--qq-shadow-lg);
     z-index: 1000;
     opacity: 0;
     pointer-events: none;
@@ -1317,19 +1373,19 @@ button,
     align-items: center;
     gap: var(--qq-space-1);
     padding: 2px var(--qq-space-2);
-    background: var(--qq-accent-primary-glow);
-    border: 1px solid var(--qq-accent-primary-dim);
+    background: var(--vscode-badge-background, var(--qq-accent-primary-glow));
+    border: 1px solid var(--qq-border-default);
     border-radius: var(--qq-radius-sm);
     font-family: var(--qq-font-mono);
     font-size: 11px;
-    color: var(--qq-accent-primary);
+    color: var(--vscode-textLink-foreground, var(--qq-accent-primary));
     cursor: pointer;
     transition: all var(--qq-transition-fast);
 }
 
 .file-mention:hover {
-    background: var(--qq-accent-primary-dim);
-    color: var(--qq-text-primary);
+    background: var(--vscode-textLink-activeForeground, var(--qq-accent-primary-dim));
+    color: var(--vscode-button-foreground, var(--qq-text-primary));
 }
 
 .file-mention-icon {

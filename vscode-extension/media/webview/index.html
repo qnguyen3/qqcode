@@ -3,11 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src {{cspSource}} 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspSource}} 'unsafe-inline';">
     <title>QQCode</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{styleUri}}">
 </head>
 <body>
@@ -44,7 +41,7 @@
         <div id="input-row">
             <textarea
                 id="user-input"
-                placeholder="Ask QQCode anything..."
+                placeholder="Enter message (↵ to send, ⇧↵ for new line, @ to mention files, ⇧⇥ to cycle mode)..."
                 rows="1"
                 aria-label="Message input"
             ></textarea>
@@ -81,9 +78,7 @@
                 </div>
             </div>
         </div>
-        <div class="keyboard-hint">
-            <kbd>↵</kbd> send • <kbd>⇧</kbd><kbd>↵</kbd> new line • <kbd>@</kbd> mention files • <kbd>⇧</kbd><kbd>⇥</kbd> cycle mode
-        </div>
+
     </div>
 
     <script src="{{scriptUri}}"></script>

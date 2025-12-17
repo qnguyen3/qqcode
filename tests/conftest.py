@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 from pydantic.fields import FieldInfo
@@ -8,6 +9,50 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 import pytest
 
 _in_mem_config: dict[str, Any] = {}
+
+
+def _patch_textual_snapshot_path_handling() -> None:
+    """Patch pytest_textual_snapshot to handle string paths in node.reportinfo().
+
+    When tests are symlinked from another location (e.g., vivadev), pytest's
+    node.reportinfo() may return a string path instead of a Path object.
+    The pytest_textual_snapshot plugin expects a Path object, causing
+    AttributeError: 'str' object has no attribute 'parent'.
+
+    This patch wraps the node_to_report_path function to convert string paths
+    to Path objects before processing.
+    """
+    try:
+        import pytest_textual_snapshot
+
+        original_node_to_report_path = pytest_textual_snapshot.node_to_report_path
+
+        def patched_node_to_report_path(node: pytest.Item) -> Path:
+            # Get the original reportinfo
+            path, line_number, name = node.reportinfo()
+            # Convert string path to Path object if needed
+            if isinstance(path, str):
+                # Temporarily patch the reportinfo method to return a Path
+                original_reportinfo = node.reportinfo
+
+                def patched_reportinfo() -> tuple[Path, int | None, str]:
+                    return (Path(path), line_number, name)
+
+                node.reportinfo = patched_reportinfo  # type: ignore[method-assign]
+                try:
+                    return original_node_to_report_path(node)
+                finally:
+                    node.reportinfo = original_reportinfo  # type: ignore[method-assign]
+            return original_node_to_report_path(node)
+
+        pytest_textual_snapshot.node_to_report_path = patched_node_to_report_path
+    except ImportError:
+        # pytest_textual_snapshot not installed, skip patching
+        pass
+
+
+# Apply the patch at import time
+_patch_textual_snapshot_path_handling()
 
 
 class InMemSettingsSource(PydanticBaseSettingsSource):

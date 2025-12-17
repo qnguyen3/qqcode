@@ -70,6 +70,63 @@ def register_adapter(
 class OpenAIAdapter(APIAdapter):
     endpoint: ClassVar[str] = "/chat/completions"
 
+    def add_cache_control_to_messages(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Add cache_control markers for providers that support explicit caching (e.g., Qwen).
+
+        Converts system messages to content block array format and adds cache_control
+        to enable guaranteed 100% cache hit rate.
+        """
+        if not messages:
+            return messages
+
+        result = []
+        for msg in messages:
+            msg = dict(msg)  # Copy to avoid mutation
+            role = msg.get("role", "")
+            content = msg.get("content")
+
+            if role == "system" and isinstance(content, str):
+                # Convert system message to content block array with cache_control
+                msg["content"] = [
+                    {
+                        "type": "text",
+                        "text": content,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            result.append(msg)
+
+        # Add cache_control to second-to-last message for conversation history caching
+        if len(result) >= 2:
+            target_idx = len(result) - 2
+            target_msg = result[target_idx]
+            content = target_msg.get("content")
+
+            if isinstance(content, str):
+                # Convert to content block array with cache_control
+                result[target_idx] = {
+                    **target_msg,
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": content,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                }
+            elif isinstance(content, list) and len(content) > 0:
+                # Add cache_control to last block if it doesn't have one
+                content = list(content)
+                last_block = dict(content[-1])
+                if "cache_control" not in last_block:
+                    last_block["cache_control"] = {"type": "ephemeral"}
+                    content[-1] = last_block
+                    result[target_idx] = {**target_msg, "content": content}
+
+        return result
+
     def build_payload(
         self,
         model_name: str,
@@ -122,6 +179,10 @@ class OpenAIAdapter(APIAdapter):
         extra_body: dict[str, Any] | None = None,
     ) -> PreparedRequest:
         converted_messages = [msg.model_dump(exclude_none=True) for msg in messages]
+
+        # Enable explicit cache control for providers that support it (e.g., Qwen)
+        if provider.name == "qwen":
+            converted_messages = self.add_cache_control_to_messages(converted_messages)
 
         payload = self.build_payload(
             model_name,
