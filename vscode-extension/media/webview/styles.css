@@ -627,9 +627,12 @@ body {
     flex: 1;
     min-width: 0;
     font-family: var(--qq-font-mono);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 400;
-    color: var(--qq-text-muted);
+    color: var(--qq-accent-red);
+    background: var(--qq-bg-primary);
+    padding: var(--qq-space-1) var(--qq-space-2);
+    border-radius: var(--qq-radius-sm);
     margin-left: var(--qq-space-2);
     white-space: nowrap;
     overflow: hidden;
