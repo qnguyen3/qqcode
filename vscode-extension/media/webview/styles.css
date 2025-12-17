@@ -510,6 +510,8 @@ body {
     animation: approvalPulse 2s ease infinite;
     position: relative;
     transition: all var(--qq-transition-base);
+    overflow: hidden;
+    min-width: 0;
 }
 
 @keyframes approvalPulse {
@@ -581,6 +583,8 @@ body {
     font-size: 13px;
     color: var(--qq-accent-amber);
     margin-bottom: var(--qq-space-3);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .tool-approval-icon {
@@ -595,7 +599,7 @@ body {
 }
 
 .tool-approval-title {
-    flex: 1;
+    flex: 0 0 auto;
 }
 
 .tool-approval-content {
