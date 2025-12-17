@@ -170,29 +170,35 @@ class AnthropicMapper:
                 ],
             }
         elif isinstance(content, list) and len(content) > 0:
-            # Add cache_control to the last content block
+            # Find a suitable block to add cache_control to
+            # Must be text (non-empty) or tool_result
             content = list(content)  # Copy the list
-            last_block = dict(content[-1])  # Copy the last block
 
-            # Check if this block type supports cache_control
-            block_type = last_block.get("type", "")
-            if block_type in ("text", "tool_result"):
-                # These types support cache_control
-                last_block["cache_control"] = {"type": "ephemeral"}
-                content[-1] = last_block  # type: ignore[call-overload]
-            else:
-                # tool_use and thinking blocks don't support cache_control
-                # Add an empty text block with cache_control
-                content.append({
-                    "type": "text",
-                    "text": "",
-                    "cache_control": {"type": "ephemeral"},
-                })
+            # Search backwards for a cacheable block
+            cache_added = False
+            for i in range(len(content) - 1, -1, -1):
+                block = dict(content[i])  # type: ignore[arg-type]
+                block_type = block.get("type", "")
 
-            messages[target_idx] = {
-                "role": target_msg["role"],
-                "content": content,
-            }
+                if block_type == "tool_result":
+                    # tool_result supports cache_control
+                    block["cache_control"] = {"type": "ephemeral"}
+                    content[i] = block  # type: ignore[call-overload]
+                    cache_added = True
+                    break
+                elif block_type == "text" and block.get("text"):
+                    # Non-empty text block supports cache_control
+                    block["cache_control"] = {"type": "ephemeral"}
+                    content[i] = block  # type: ignore[call-overload]
+                    cache_added = True
+                    break
+                # Skip tool_use, thinking, and empty text blocks
+
+            if cache_added:
+                messages[target_idx] = {
+                    "role": target_msg["role"],
+                    "content": content,
+                }
 
         return messages
 
