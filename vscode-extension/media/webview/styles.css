@@ -502,6 +502,8 @@ body {
    Tool & Plan Approval
    ================================ */
 .tool-approval {
+    display: flex;
+    flex-direction: column;
     background: var(--vscode-inputValidation-warningBackground, var(--qq-bg-surface));
     border: 1px solid var(--qq-accent-amber-dim);
     border-radius: var(--qq-radius-lg);
@@ -577,7 +579,9 @@ body {
 
 .tool-approval-header {
     display: flex;
+    flex-direction: row;
     align-items: center;
+    align-self: stretch;
     gap: var(--qq-space-2);
     font-weight: 700;
     font-size: 13px;
@@ -604,14 +608,14 @@ body {
 
 .tool-approval-content {
     display: block;
-    width: 100%;
+    align-self: stretch;
     font-family: var(--qq-font-mono);
     font-size: 11px;
     color: var(--qq-text-secondary);
     background: var(--qq-bg-primary);
     padding: var(--qq-space-3);
     border-radius: var(--qq-radius-md);
-    margin-top: var(--qq-space-3);
+    margin-top: 0;
     margin-bottom: 0;
     max-height: 120px;
     overflow-y: auto;
