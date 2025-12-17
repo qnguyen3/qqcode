@@ -579,11 +579,20 @@ class VibeConfig(BaseSettings):
                 try:
                     import asyncio
 
-                    from vibe.core.oauth.claude import refresh_token
+                    if provider.name == "qwen":
+                        from vibe.core.oauth.qwen import (
+                            refresh_token as qwen_refresh_token,
+                        )
 
-                    new_token = asyncio.run(
-                        refresh_token(provider.oauth_token.refresh_token)
-                    )
+                        new_token = asyncio.run(
+                            qwen_refresh_token(provider.oauth_token.refresh_token)
+                        )
+                    else:
+                        from vibe.core.oauth.claude import refresh_token
+
+                        new_token = asyncio.run(
+                            refresh_token(provider.oauth_token.refresh_token)
+                        )
 
                     provider.oauth_token = new_token
 
