@@ -483,35 +483,44 @@
     }
     currentAssistantMessage = null;
 
+    const formattedName = formatToolName(toolName);
+
+    // Create a reactive element similar to approval but already in executing state
     const toolDiv = document.createElement("div");
-    toolDiv.className = "tool-call";
+    toolDiv.className = "tool-approval executing";
     toolDiv.id = `tool-${toolCallId}`;
+    toolDiv.dataset.toolCallId = toolCallId;
+    toolDiv.dataset.toolName = toolName;
 
     const header = document.createElement("div");
-    header.className = "tool-call-header";
-    header.textContent = formatToolName(toolName);
+    header.className = "tool-approval-header";
+    header.innerHTML = `<span class="tool-approval-icon spinning"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg></span><span class="tool-approval-title">Running ${formattedName}...</span>`;
 
-    const argsDiv = document.createElement("div");
-    argsDiv.className = "tool-call-args";
-    argsDiv.textContent = formatArgs(args);
+    const contentDiv = document.createElement("div");
+    contentDiv.className = "tool-approval-content";
+    contentDiv.textContent = formatArgs(args);
 
     toolDiv.appendChild(header);
-    toolDiv.appendChild(argsDiv);
+    toolDiv.appendChild(contentDiv);
     messagesDiv.appendChild(toolDiv);
+
+    // Store in approvalMap so showToolResult can find and transform it
+    approvalMap.set(toolCallId, toolDiv);
     toolCallMap.set(toolCallId, toolDiv);
     scrollToBottom();
   }
 
   function showToolResult(toolCallId, result, isError) {
-    // Check if there's an existing approval element to transform
+    // Check if there's an existing tool element to transform (from either approval or auto-approved tool call)
     const approvalDiv = approvalMap.get(toolCallId);
 
     if (approvalDiv) {
-      // Transform the approval element to show result
+      // Transform the element to show result
       transformApprovalToResult(approvalDiv, result, isError);
       approvalMap.delete(toolCallId);
+      toolCallMap.delete(toolCallId);
     } else {
-      // Create new result element (for auto-approved tools)
+      // Fallback: Create new result element (should rarely happen with the new flow)
       const resultDiv = document.createElement("div");
       resultDiv.className = "tool-result" + (isError ? " error" : "");
 
