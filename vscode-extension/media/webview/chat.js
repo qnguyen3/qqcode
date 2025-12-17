@@ -560,7 +560,13 @@
       const toggleIcon = `<span class="tool-approval-toggle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></span>`;
 
       if (isError) {
-        header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName}</span>${toggleIcon}`;
+        // For errors, show inline error preview in the header
+        const firstLine = result ? result.split('\n')[0].trim() : 'Error';
+        const truncatedError = firstLine.length > 50
+          ? firstLine.substring(0, 50) + "..."
+          : firstLine;
+        const errorPreview = `<span class="tool-approval-error-inline">${escapeHtml(truncatedError)}</span>`;
+        header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span><span class="tool-approval-title">${formattedName}</span>${errorPreview}${toggleIcon}`;
       } else {
         header.innerHTML = `<span class="tool-approval-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span><span class="tool-approval-title">${formattedName}</span>${toggleIcon}`;
       }
@@ -578,19 +584,6 @@
     // Collapse the args by default
     if (contentDiv) {
       contentDiv.classList.add("collapsed");
-    }
-
-    // For errors, show a compact error preview
-    if (isError && result) {
-      const errorPreview = document.createElement("div");
-      errorPreview.className = "tool-approval-error";
-      // Keep error preview short - first line only, max 80 chars
-      const firstLine = result.split('\n')[0].trim();
-      const truncatedResult = firstLine.length > 80
-        ? firstLine.substring(0, 80) + "..."
-        : firstLine;
-      errorPreview.textContent = truncatedResult;
-      approvalDiv.appendChild(errorPreview);
     }
   }
 

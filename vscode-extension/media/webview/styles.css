@@ -619,18 +619,17 @@ body {
     display: none;
 }
 
-.tool-approval-error {
+.tool-approval-error-inline {
+    flex: 1;
+    min-width: 0;
     font-family: var(--qq-font-mono);
     font-size: 11px;
-    color: var(--qq-accent-red);
-    background: var(--qq-bg-primary);
-    padding: var(--qq-space-2) var(--qq-space-3);
-    border-radius: var(--qq-radius-md);
-    margin-top: var(--qq-space-2);
+    font-weight: 400;
+    color: var(--qq-text-muted);
+    margin-left: var(--qq-space-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
 }
 
 /* Toggle for expandable content */
