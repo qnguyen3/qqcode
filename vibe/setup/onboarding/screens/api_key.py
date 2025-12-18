@@ -34,6 +34,7 @@ PROVIDER_HELP = {
     "mistral": ("https://console.mistral.ai/codestral/vibe", "Mistral AI Console"),
     "openrouter": ("https://openrouter.ai/keys", "OpenRouter Dashboard"),
     "zai": ("https://z.ai/manage-apikey/apikey-list", "Z.ai Dashboard"),
+    "xiaomimimo": ("https://platform.xiaomimimo.com/", "XiaomiMimo Platform"),
 }
 
 PROVIDER_DISPLAY_NAMES = {
@@ -43,6 +44,7 @@ PROVIDER_DISPLAY_NAMES = {
     "anthropic": "Anthropic (Subscription)",
     "zai": "Z.ai",
     "qwen": "Qwen (OAuth)",
+    "xiaomimimo": "Xiaomi MiMo",
 }
 
 DEFAULT_MODELS_BY_PROVIDER = {
@@ -52,6 +54,7 @@ DEFAULT_MODELS_BY_PROVIDER = {
     "anthropic": "claude-sonnet-4.5",
     "zai": "zai/glm-4.6",
     "qwen": "qwen-coder-plus",
+    "xiaomimimo": "mimo-v2-flash",
 }
 
 # Providers that support OAuth login
