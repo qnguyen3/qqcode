@@ -301,6 +301,13 @@ DEFAULT_PROVIDERS = [
         api_style="openai",
         backend=Backend.GENERIC,
     ),
+    ProviderConfig(
+        name="xiaomimimo",
+        api_base="https://api.xiaomimimo.com/v1",
+        api_key_env_var="MIMO_API_KEY",
+        api_style="openai",
+        backend=Backend.GENERIC,
+    ),
 ]
 
 DEFAULT_MODELS = [
@@ -405,6 +412,17 @@ DEFAULT_MODELS = [
         name="qwen3-coder-flash",
         provider="qwen",
         alias="qwen-coder-flash",
+    ),
+    # XiaomiMimo models
+    # Note: thinking variant removed - MiMo returns tool calls as XML in reasoning content
+    # which isn't compatible with our structured tool call handling
+    ModelConfig(
+        name="mimo-v2-flash",
+        provider="xiaomimimo",
+        alias="mimo-v2-flash",
+        input_price=0.1,
+        output_price=0.3,
+        context_limit=256_000,
     ),
 ]
 

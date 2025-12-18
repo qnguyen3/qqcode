@@ -197,10 +197,13 @@ class LLMMessage(BaseModel):
     def _from_any(cls, v: Any) -> dict[str, Any] | Any:
         if isinstance(v, dict):
             v.setdefault("content", "")
-            v.setdefault("role", "assistant")
+            # Handle both missing role AND role=None (some providers return null in streaming deltas)
+            if v.get("role") is None:
+                v["role"] = "assistant"
             return v
+        role = getattr(v, "role", None)
         return {
-            "role": str(getattr(v, "role", "assistant")),
+            "role": str(role) if role is not None else "assistant",
             "content": getattr(v, "content", ""),
             "reasoning_content": getattr(v, "reasoning_content", None),
             "thinking_signature": getattr(v, "thinking_signature", None),
