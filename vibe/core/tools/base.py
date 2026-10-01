@@ -51,6 +51,11 @@ class ToolPermission(StrEnum):
             )
 
 
+class ToolExecutionMode(StrEnum):
+    PARALLEL = auto()
+    SEQUENTIAL = auto()
+
+
 class BaseToolConfig(BaseModel):
     """Configuration for a tool.
 
@@ -103,6 +108,8 @@ class BaseTool[
     )
 
     prompt_path: ClassVar[Path] | None = None
+
+    execution_mode: ClassVar[ToolExecutionMode] = ToolExecutionMode.PARALLEL
 
     def __init__(self, config: ToolConfig, state: ToolState) -> None:
         self.config = config

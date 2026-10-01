@@ -8,6 +8,7 @@ from vibe.core.tools.base import (
     BaseTool,
     BaseToolConfig,
     BaseToolState,
+    ToolExecutionMode,
     ToolPermission,
 )
 
@@ -48,6 +49,8 @@ class SubmitPlan(
         "The plan should be in Markdown format with clear steps. "
         "The user will review and choose to approve or request revisions."
     )
+
+    execution_mode: ClassVar[ToolExecutionMode] = ToolExecutionMode.SEQUENTIAL
 
     async def run(self, args: SubmitPlanArgs) -> SubmitPlanResult:
         # The actual approval happens via callback in the agent
@@ -92,6 +95,8 @@ class ExitPlanMode(
         "Exit plan mode after your plan has been approved by the user. "
         "Call this to acknowledge approval and begin implementation."
     )
+
+    execution_mode: ClassVar[ToolExecutionMode] = ToolExecutionMode.SEQUENTIAL
 
     async def run(self, args: ExitPlanModeArgs) -> ExitPlanModeResult:
         return ExitPlanModeResult(

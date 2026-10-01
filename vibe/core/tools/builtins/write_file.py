@@ -15,6 +15,7 @@ from vibe.core.tools.base import (
 )
 from vibe.core.tools.ui import ToolCallDisplay, ToolResultDisplay, ToolUIData
 from vibe.core.types import ToolCallEvent, ToolResultEvent
+from vibe.core.utils.file_lock import file_mutation_lock
 
 
 class WriteFileArgs(BaseModel):
@@ -111,7 +112,8 @@ class WriteFile(
     async def run(self, args: WriteFileArgs) -> WriteFileResult:
         file_path, file_existed, content_bytes = self._prepare_and_validate_path(args)
 
-        await self._write_file(args, file_path)
+        async with file_mutation_lock(file_path):
+            await self._write_file(args, file_path)
 
         BUFFER_SIZE = 10
         self.state.recently_written_files.append(str(file_path))

@@ -313,6 +313,18 @@ Notes:
 - MCP tool names use underscores, e.g., `serena_list` not `serena.list`.
 - Regex patterns are matched against the full tool name using fullmatch.
 
+### Parallel tool execution
+
+When the model requests several tool calls in one turn, QQcode runs them concurrently
+(bounded by `max_parallel_tools`). Tools that interact with the UI or shared session
+state (plan submission, ACP tools) always run sequentially, and edits/writes to the
+same file are serialized automatically.
+
+```toml
+tool_execution = "parallel"   # set to "sequential" to restore the old one-at-a-time behavior
+max_parallel_tools = 4
+```
+
 ### Custom QQcode Home Directory
 
 By default, QQcode stores its configuration in `~/.qqcode/`. You can override this by setting the `QQCODE_HOME` environment variable:

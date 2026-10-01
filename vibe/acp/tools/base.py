@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Protocol, cast, runtime_checkable
+from typing import ClassVar, Protocol, cast, runtime_checkable
 
 from acp import AgentSideConnection, SessionNotification
 from acp.helpers import SessionUpdate, ToolCallContentVariant
 from acp.schema import ToolCallProgress
 from pydantic import Field
 
-from vibe.core.tools.base import BaseTool, ToolError
+from vibe.core.tools.base import BaseTool, ToolError, ToolExecutionMode
 from vibe.core.tools.manager import ToolManager
 from vibe.core.types import ToolCallEvent, ToolResultEvent
 from vibe.core.utils import logger
@@ -40,6 +40,8 @@ class AcpToolState:
 
 class BaseAcpTool[ToolState: AcpToolState](BaseTool):
     state: ToolState
+
+    execution_mode: ClassVar[ToolExecutionMode] = ToolExecutionMode.SEQUENTIAL
 
     @classmethod
     def get_tool_instance(

@@ -21,7 +21,7 @@ import tomli_w
 
 from vibe.core.oauth.token import AnthropicOAuthToken, OAuthToken, QwenOAuthToken
 from vibe.core.prompts import SystemPrompt
-from vibe.core.tools.base import BaseToolConfig
+from vibe.core.tools.base import BaseToolConfig, ToolExecutionMode
 
 
 def get_vibe_home() -> Path:
@@ -451,6 +451,8 @@ class VibeConfig(BaseSettings):
 
     project_context: ProjectContextConfig = Field(default_factory=ProjectContextConfig)
     session_logging: SessionLoggingConfig = Field(default_factory=SessionLoggingConfig)
+    tool_execution: ToolExecutionMode = ToolExecutionMode.PARALLEL
+    max_parallel_tools: int = Field(default=4, ge=1)
     tools: dict[str, BaseToolConfig] = Field(default_factory=dict)
     tool_paths: list[str] = Field(
         default_factory=list,

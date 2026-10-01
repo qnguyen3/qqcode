@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from vibe.core.tools.base import BaseTool, BaseToolConfig, BaseToolState, ToolError
 from vibe.core.tools.ui import ToolCallDisplay, ToolResultDisplay, ToolUIData
 from vibe.core.types import ToolCallEvent, ToolResultEvent
+from vibe.core.utils.file_lock import file_mutation_lock
 
 
 class EditArgs(BaseModel):
@@ -84,6 +85,11 @@ class Edit(
     @final
     async def run(self, args: EditArgs) -> EditResult:
         file_path = self._validate_and_resolve_path(args.file_path)
+
+        async with file_mutation_lock(file_path):
+            return await self._apply_edit(args, file_path)
+
+    async def _apply_edit(self, args: EditArgs, file_path: Path) -> EditResult:
         original_content = await self._read_file(file_path)
 
         # Check if old_string exists

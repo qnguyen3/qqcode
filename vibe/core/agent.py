@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Callable
+from dataclasses import dataclass
 from enum import StrEnum, auto
 import time
 from typing import Any, cast
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from vibe.core.config import VibeConfig
 from vibe.core.interaction_logger import InteractionLogger
 from vibe.core.llm.backend.factory import BACKEND_FACTORY
-from vibe.core.llm.format import APIToolFormatHandler, ResolvedMessage
+from vibe.core.llm.format import APIToolFormatHandler, ResolvedMessage, ResolvedToolCall
 from vibe.core.llm.types import BackendLike
 from vibe.core.middleware import (
     AutoCompactMiddleware,
@@ -32,6 +33,7 @@ from vibe.core.system_prompt import get_universal_system_prompt
 from vibe.core.tools.base import (
     BaseTool,
     ToolError,
+    ToolExecutionMode,
     ToolPermission,
     ToolPermissionError,
 )
@@ -81,6 +83,19 @@ class ToolDecision(BaseModel):
     feedback: str | None = None
 
 
+@dataclass(frozen=True)
+class _PreparedToolCall:
+    tool_call: ResolvedToolCall
+    tool_instance: BaseTool
+
+
+@dataclass(frozen=True)
+class _ToolOutcome:
+    result: Any = None
+    error: ToolError | ToolPermissionError | None = None
+    duration: float = 0.0
+
+
 class AgentError(Exception):
     """Base exception for Agent errors."""
 
@@ -102,6 +117,13 @@ def _mode_string_to_agent_mode(mode_string: str) -> AgentMode | None:
             return AgentMode.AUTO_APPROVE
         case _:
             return None
+
+
+async def _cancel_tasks(tasks: list[asyncio.Task[None]]) -> None:
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 class Agent:
@@ -528,7 +550,7 @@ class Agent:
             tokens_per_second=self.stats.tokens_per_second,
         )
 
-    async def _handle_tool_calls(  # noqa: PLR0915
+    async def _handle_tool_calls(
         self, resolved: ResolvedMessage
     ) -> AsyncGenerator[ToolCallEvent | ToolResultEvent | ModeChangedEvent]:
         for failed in resolved.failed_calls:
@@ -548,6 +570,7 @@ class Agent:
                 )
             )
 
+        prepared: list[_PreparedToolCall] = []
         for tool_call in resolved.tool_calls:
             tool_call_id = tool_call.call_id
 
@@ -607,148 +630,262 @@ class Agent:
                 continue
 
             self.stats.tool_calls_agreed += 1
+            prepared.append(_PreparedToolCall(tool_call, tool_instance))
 
-            try:
+        if not prepared:
+            return
+
+        match self._execution_mode_for(prepared):
+            case ToolExecutionMode.SEQUENTIAL:
+                for item in prepared:
+                    async for event in self._execute_tool_call(item):
+                        yield event
+            case ToolExecutionMode.PARALLEL:
+                async for event in self._execute_tool_call_batch(prepared):
+                    yield event
+
+    def _execution_mode_for(
+        self, prepared: list[_PreparedToolCall]
+    ) -> ToolExecutionMode:
+        if self.config.tool_execution is ToolExecutionMode.SEQUENTIAL:
+            return ToolExecutionMode.SEQUENTIAL
+        if any(
+            item.tool_instance.execution_mode is ToolExecutionMode.SEQUENTIAL
+            for item in prepared
+        ):
+            return ToolExecutionMode.SEQUENTIAL
+        return ToolExecutionMode.PARALLEL
+
+    async def _execute_tool_call(
+        self, item: _PreparedToolCall
+    ) -> AsyncGenerator[ToolResultEvent | ModeChangedEvent]:
+        try:
+            start_time = time.perf_counter()
+            result_model = await item.tool_instance.invoke(**item.tool_call.args_dict)
+            duration = time.perf_counter() - start_time
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            async for event in self._handle_interrupted_tool(item.tool_call):
+                yield event
+            raise
+        except (ToolError, ToolPermissionError) as exc:
+            async for event in self._handle_failed_tool_call(item, exc):
+                yield event
+            return
+
+        async for event in self._handle_successful_tool_call(
+            item, result_model, duration
+        ):
+            yield event
+
+    async def _execute_tool_call_batch(
+        self, prepared: list[_PreparedToolCall]
+    ) -> AsyncGenerator[ToolResultEvent | ModeChangedEvent]:
+        semaphore = asyncio.Semaphore(self.config.max_parallel_tools)
+        outcomes: list[_ToolOutcome | None] = [None] * len(prepared)
+        interruptions: dict[int, KeyboardInterrupt] = {}
+        tasks: list[asyncio.Task[None]] = []
+
+        async def run_one(index: int, item: _PreparedToolCall) -> None:
+            async with semaphore:
                 start_time = time.perf_counter()
-                result_model = await tool_instance.invoke(**tool_call.args_dict)
-                duration = time.perf_counter() - start_time
-
-                # Handle plan submission approval via callback
-                if (
-                    hasattr(result_model, "plan_submitted")
-                    and result_model.plan_submitted
-                    and self.plan_approval_callback
-                ):
-                    plan_content = tool_call.args_dict.get("plan", "")
-                    callback_result = self.plan_approval_callback(plan_content)
-                    if asyncio.iscoroutine(callback_result):
-                        approved, mode_or_feedback = await callback_result
-                    else:
-                        approved, mode_or_feedback = callback_result
-                    # Mutate result with approval info
-                    result_model.approved = approved
-                    if approved:
-                        result_model.execution_mode = mode_or_feedback
-                        result_model.message = (
-                            f"Plan approved. Execution mode: {mode_or_feedback}"
-                        )
-                    else:
-                        result_model.execution_mode = None
-                        result_model.message = (
-                            f"User requested revisions: {mode_or_feedback}"
-                        )
-
-                text = "\n".join(
-                    f"{k}: {v}" for k, v in result_model.model_dump().items()
-                )
-
-                self.messages.append(
-                    LLMMessage.model_validate(
-                        self.format_handler.create_tool_response_message(
-                            tool_call, text
-                        )
+                try:
+                    result_model = await item.tool_instance.invoke(
+                        **item.tool_call.args_dict
                     )
-                )
-
-                yield ToolResultEvent(
-                    tool_name=tool_call.tool_name,
-                    tool_class=tool_call.tool_class,
-                    result=result_model,
-                    duration=duration,
-                    tool_call_id=tool_call_id,
-                )
-
-                self.stats.tool_calls_succeeded += 1
-
-                # Check for mode change from plan approval
-                if (
-                    hasattr(result_model, "execution_mode")
-                    and result_model.execution_mode
-                    and hasattr(result_model, "approved")
-                    and result_model.approved
-                ):
-                    new_mode = _mode_string_to_agent_mode(result_model.execution_mode)
-                    if new_mode and new_mode != self._mode:
-                        self._mode = new_mode
-                        self._regenerate_system_prompt_for_mode()
-                        yield ModeChangedEvent(new_mode=new_mode)
-
-                # Check for mode change signals in tool result (legacy)
-                if (
-                    hasattr(result_model, "mode_change")
-                    and result_model.mode_change == "plan"
-                ):
-                    self._mode = AgentMode.PLAN
-                    self._regenerate_system_prompt_for_mode()
-                    yield ModeChangedEvent(new_mode=AgentMode.PLAN)
-
-            except asyncio.CancelledError:
-                cancel = str(
-                    get_user_cancellation_message(CancellationReason.TOOL_INTERRUPTED)
-                )
-                yield ToolResultEvent(
-                    tool_name=tool_call.tool_name,
-                    tool_class=tool_call.tool_class,
-                    error=cancel,
-                    tool_call_id=tool_call_id,
-                )
-                self.messages.append(
-                    LLMMessage.model_validate(
-                        self.format_handler.create_tool_response_message(
-                            tool_call, cancel
-                        )
+                except (ToolError, ToolPermissionError) as exc:
+                    outcomes[index] = _ToolOutcome(
+                        error=exc, duration=time.perf_counter() - start_time
                     )
-                )
-                await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
-                )
-                raise
-
-            except KeyboardInterrupt:
-                cancel = str(
-                    get_user_cancellation_message(CancellationReason.TOOL_INTERRUPTED)
-                )
-                yield ToolResultEvent(
-                    tool_name=tool_call.tool_name,
-                    tool_class=tool_call.tool_class,
-                    error=cancel,
-                    tool_call_id=tool_call_id,
-                )
-                self.messages.append(
-                    LLMMessage.model_validate(
-                        self.format_handler.create_tool_response_message(
-                            tool_call, cancel
-                        )
-                    )
-                )
-                await self.interaction_logger.save_interaction(
-                    self.messages, self.stats, self.config, self.tool_manager, self._additional_directory_contexts
-                )
-                raise
-
-            except (ToolError, ToolPermissionError) as exc:
-                error_msg = f"<{TOOL_ERROR_TAG}>{tool_instance.get_name()} failed: {exc}</{TOOL_ERROR_TAG}>"
-
-                yield ToolResultEvent(
-                    tool_name=tool_call.tool_name,
-                    tool_class=tool_call.tool_class,
-                    error=error_msg,
-                    tool_call_id=tool_call_id,
+                    return
+                except KeyboardInterrupt as exc:
+                    interruptions[index] = exc
+                    return
+                outcomes[index] = _ToolOutcome(
+                    result=result_model, duration=time.perf_counter() - start_time
                 )
 
-                if isinstance(exc, ToolPermissionError):
-                    self.stats.tool_calls_agreed -= 1
-                    self.stats.tool_calls_rejected += 1
-                else:
-                    self.stats.tool_calls_failed += 1
-                self.messages.append(
-                    LLMMessage.model_validate(
-                        self.format_handler.create_tool_response_message(
-                            tool_call, error_msg
-                        )
-                    )
-                )
+        try:
+            tasks = [
+                asyncio.create_task(run_one(index, item))
+                for index, item in enumerate(prepared)
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        except asyncio.CancelledError:
+            await _cancel_tasks(tasks)
+            async for event in self._handle_batch_interruption(prepared, outcomes):
+                yield event
+            raise
+
+        interruption = next(
+            (
+                result
+                for result in results
+                if isinstance(result, asyncio.CancelledError)
+            ),
+            None,
+        )
+        if interruption is None and interruptions:
+            interruption = next(iter(interruptions.values()))
+        if interruption is not None:
+            await _cancel_tasks(tasks)
+            async for event in self._handle_batch_interruption(prepared, outcomes):
+                yield event
+            raise interruption
+
+        unexpected = next(
+            (result for result in results if isinstance(result, BaseException)), None
+        )
+        if unexpected is not None:
+            await _cancel_tasks(tasks)
+            raise unexpected
+
+        for index, item in enumerate(prepared):
+            outcome = outcomes[index]
+            if outcome is None:
                 continue
+            if outcome.error is not None:
+                async for event in self._handle_failed_tool_call(item, outcome.error):
+                    yield event
+            else:
+                async for event in self._handle_successful_tool_call(
+                    item, outcome.result, outcome.duration
+                ):
+                    yield event
+
+    async def _handle_batch_interruption(
+        self, prepared: list[_PreparedToolCall], outcomes: list[_ToolOutcome | None]
+    ) -> AsyncGenerator[ToolResultEvent | ModeChangedEvent]:
+        for index, item in enumerate(prepared):
+            outcome = outcomes[index]
+
+            if outcome is None:
+                async for event in self._handle_interrupted_tool(item.tool_call):
+                    yield event
+            elif outcome.error is not None:
+                async for event in self._handle_failed_tool_call(item, outcome.error):
+                    yield event
+            else:
+                async for event in self._handle_successful_tool_call(
+                    item, outcome.result, outcome.duration
+                ):
+                    yield event
+
+    async def _handle_successful_tool_call(
+        self, item: _PreparedToolCall, result_model: Any, duration: float
+    ) -> AsyncGenerator[ToolResultEvent | ModeChangedEvent]:
+        tool_call = item.tool_call
+
+        # Handle plan submission approval via callback
+        if (
+            hasattr(result_model, "plan_submitted")
+            and result_model.plan_submitted
+            and self.plan_approval_callback
+        ):
+            plan_content = tool_call.args_dict.get("plan", "")
+            callback_result = self.plan_approval_callback(plan_content)
+            if asyncio.iscoroutine(callback_result):
+                approved, mode_or_feedback = await callback_result
+            else:
+                approved, mode_or_feedback = callback_result
+            # Mutate result with approval info
+            result_model.approved = approved
+            if approved:
+                result_model.execution_mode = mode_or_feedback
+                result_model.message = (
+                    f"Plan approved. Execution mode: {mode_or_feedback}"
+                )
+            else:
+                result_model.execution_mode = None
+                result_model.message = f"User requested revisions: {mode_or_feedback}"
+
+        text = "\n".join(f"{k}: {v}" for k, v in result_model.model_dump().items())
+
+        self.messages.append(
+            LLMMessage.model_validate(
+                self.format_handler.create_tool_response_message(tool_call, text)
+            )
+        )
+
+        yield ToolResultEvent(
+            tool_name=tool_call.tool_name,
+            tool_class=tool_call.tool_class,
+            result=result_model,
+            duration=duration,
+            tool_call_id=tool_call.call_id,
+        )
+
+        self.stats.tool_calls_succeeded += 1
+
+        # Check for mode change from plan approval
+        if (
+            hasattr(result_model, "execution_mode")
+            and result_model.execution_mode
+            and hasattr(result_model, "approved")
+            and result_model.approved
+        ):
+            new_mode = _mode_string_to_agent_mode(result_model.execution_mode)
+            if new_mode and new_mode != self._mode:
+                self._mode = new_mode
+                self._regenerate_system_prompt_for_mode()
+                yield ModeChangedEvent(new_mode=new_mode)
+
+        # Check for mode change signals in tool result (legacy)
+        if hasattr(result_model, "mode_change") and result_model.mode_change == "plan":
+            self._mode = AgentMode.PLAN
+            self._regenerate_system_prompt_for_mode()
+            yield ModeChangedEvent(new_mode=AgentMode.PLAN)
+
+    async def _handle_failed_tool_call(
+        self, item: _PreparedToolCall, exc: ToolError | ToolPermissionError
+    ) -> AsyncGenerator[ToolResultEvent]:
+        tool_call = item.tool_call
+        error_msg = (
+            f"<{TOOL_ERROR_TAG}>{item.tool_instance.get_name()} failed: {exc}"
+            f"</{TOOL_ERROR_TAG}>"
+        )
+
+        yield ToolResultEvent(
+            tool_name=tool_call.tool_name,
+            tool_class=tool_call.tool_class,
+            error=error_msg,
+            tool_call_id=tool_call.call_id,
+        )
+
+        if isinstance(exc, ToolPermissionError):
+            self.stats.tool_calls_agreed -= 1
+            self.stats.tool_calls_rejected += 1
+        else:
+            self.stats.tool_calls_failed += 1
+        self.messages.append(
+            LLMMessage.model_validate(
+                self.format_handler.create_tool_response_message(tool_call, error_msg)
+            )
+        )
+
+    async def _handle_interrupted_tool(
+        self, tool_call: ResolvedToolCall
+    ) -> AsyncGenerator[ToolResultEvent]:
+        cancel = str(get_user_cancellation_message(CancellationReason.TOOL_INTERRUPTED))
+
+        yield ToolResultEvent(
+            tool_name=tool_call.tool_name,
+            tool_class=tool_call.tool_class,
+            error=cancel,
+            tool_call_id=tool_call.call_id,
+        )
+
+        self.messages.append(
+            LLMMessage.model_validate(
+                self.format_handler.create_tool_response_message(tool_call, cancel)
+            )
+        )
+        await self.interaction_logger.save_interaction(
+            self.messages,
+            self.stats,
+            self.config,
+            self.tool_manager,
+            self._additional_directory_contexts,
+        )
 
     async def _chat(self, max_tokens: int | None = None) -> LLMChunk:
         active_model = self.config.get_active_model()
