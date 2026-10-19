@@ -25,8 +25,11 @@ class SystemPrompt(Prompt):
 class UtilityPrompt(Prompt):
     COMPACT = auto()
     DANGEROUS_DIRECTORY = auto()
+    DOCS_ROUTING = auto()
     PLAN_MODE = auto()
     PROJECT_CONTEXT = auto()
+    SUMMARY = auto()
+    SUMMARY_UPDATE = auto()
 
 
 __all__ = ["SystemPrompt", "UtilityPrompt"]

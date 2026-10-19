@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 from enum import StrEnum, auto
-from typing import Any, ClassVar
+import json
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -47,18 +47,18 @@ class TodoArgs(BaseModel):
     @classmethod
     def parse_todos_field(cls, v: Any) -> list[TodoItem] | None:
         """Handle string input for todos field (hot fix for GLM model).
-        
+
         The GLM model from Z.ai sometimes passes the todos parameter as a string
         instead of a list. This validator attempts to parse it as JSON and convert
         it to the proper list format.
         """
         if v is None:
             return None
-            
+
         # If it's already a list, return as is
         if isinstance(v, list):
             return v
-            
+
         # If it's a string, try to parse it as JSON
         if isinstance(v, str):
             try:
@@ -71,7 +71,7 @@ class TodoArgs(BaseModel):
                     f"Invalid todos format. Expected a list or JSON string representing a list. "
                     f"Error: {e}"
                 )
-        
+
         # If it's neither None, list, nor string, raise an error
         raise ValueError(
             f"Invalid todos format. Expected a list or JSON string representing a list, "
@@ -88,6 +88,9 @@ class TodoResult(BaseModel):
 class TodoConfig(BaseToolConfig):
     permission: ToolPermission = ToolPermission.ALWAYS
     max_todos: int = 100
+    timeout: float | None = Field(
+        default=120.0, description="Agent-level timeout for the whole tool invocation."
+    )
 
 
 class TodoState(BaseToolState):
@@ -101,6 +104,7 @@ class Todo(
     description: ClassVar[str] = (
         "Manage todos. Use action='read' to view, action='write' with complete list to update."
     )
+    execution_mode: ClassVar[Literal["parallel", "sequential"]] = "sequential"
 
     @classmethod
     def get_call_display(cls, event: ToolCallEvent) -> ToolCallDisplay:

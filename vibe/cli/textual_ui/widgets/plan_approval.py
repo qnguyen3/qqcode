@@ -60,10 +60,7 @@ class PlanApprovalWidget(Container):
 
             # Show the plan content if available
             if self._plan:
-                yield Static(
-                    "Review the plan below:",
-                    classes="plan-approval-subtitle",
-                )
+                yield Static("Review the plan below:", classes="plan-approval-subtitle")
                 with ScrollableContainer(id="plan-content-container"):
                     yield Markdown(self._plan, id="plan-content")
             else:
@@ -186,7 +183,9 @@ class PlanApprovalWidget(Container):
             self._revision_input.display = True
             self._revision_input.focus()
         if self.help_widget:
-            self.help_widget.update("Type your feedback and press Enter (Esc to cancel)")
+            self.help_widget.update(
+                "Type your feedback and press Enter (Esc to cancel)"
+            )
         self._update_options()
 
     def _exit_revision_mode(self) -> None:

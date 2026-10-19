@@ -5,15 +5,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from vibe.core.skills.manager import (
-    SkillManager,
-    SkillNotFoundError,
-)
+from vibe.core.skills.manager import SkillManager, SkillNotFoundError
 
 
 @pytest.fixture
-def mock_config(tmp_path: Path) -> MagicMock:
-    """Create a mock VibeConfig with a temporary workdir."""
+def mock_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Create a mock VibeConfig with a temporary workdir and isolated home."""
+    monkeypatch.setenv("QQCODE_HOME", str(tmp_path / ".qqcode-home"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
     config = MagicMock()
     config.effective_workdir = tmp_path
     return config
@@ -166,9 +165,7 @@ description: Description for {skill_name}.
 class TestSkillContent:
     """Tests for loading skill content."""
 
-    def test_gets_skill_content(
-        self, mock_config: MagicMock, skills_dir: Path
-    ) -> None:
+    def test_gets_skill_content(self, mock_config: MagicMock, skills_dir: Path) -> None:
         skill_path = skills_dir / "content-test"
         skill_path.mkdir()
         content = """---
@@ -245,8 +242,13 @@ description: A skill for testing prompt generation.
 
         assert "<available_skills>" in section
         assert "</available_skills>" in section
-        assert "name: test-skill" in section
-        assert "description: A skill for testing prompt generation." in section
+        assert "<name>test-skill</name>" in section
+        assert (
+            "<description>A skill for testing prompt generation.</description>"
+            in section
+        )
+        assert f"<location>{(skill_path / 'SKILL.md').resolve()}</location>" in section
+        assert "read the file at location" in section
 
     def test_has_skills_returns_false_when_empty(
         self, mock_config: MagicMock, skills_dir: Path
@@ -274,9 +276,7 @@ description: Skill exists.
 class TestSkillInfo:
     """Tests for the SkillInfo model."""
 
-    def test_gets_skill_info(
-        self, mock_config: MagicMock, skills_dir: Path
-    ) -> None:
+    def test_gets_skill_info(self, mock_config: MagicMock, skills_dir: Path) -> None:
         skill_path = skills_dir / "info-test"
         skill_path.mkdir()
         (skill_path / "SKILL.md").write_text(
@@ -300,3 +300,167 @@ description: Testing skill info retrieval.
     ) -> None:
         manager = SkillManager(mock_config)
         assert manager.get_skill_info("nonexistent") is None
+
+
+class TestSkillFrontmatterExtensions:
+    """Tests for disable-model-invocation and allowed-tools parsing."""
+
+    def test_parses_disable_model_invocation_and_allowed_tools(
+        self, mock_config: MagicMock, skills_dir: Path
+    ) -> None:
+        skill_path = skills_dir / "restricted"
+        skill_path.mkdir()
+        (skill_path / "SKILL.md").write_text(
+            """---
+name: restricted
+description: A restricted skill.
+disable-model-invocation: true
+allowed-tools: Read, Grep, Bash(git:*)
+---
+"""
+        )
+
+        manager = SkillManager(mock_config)
+        info = manager.get_skill_info("restricted")
+
+        assert info is not None
+        assert info.disable_model_invocation is True
+        assert info.allowed_tools == ["Read", "Grep", "Bash(git:*)"]
+
+    def test_defaults_for_missing_fields(
+        self, mock_config: MagicMock, skills_dir: Path
+    ) -> None:
+        skill_path = skills_dir / "plain"
+        skill_path.mkdir()
+        (skill_path / "SKILL.md").write_text(
+            """---
+name: plain
+description: A plain skill.
+---
+"""
+        )
+
+        manager = SkillManager(mock_config)
+        info = manager.get_skill_info("plain")
+
+        assert info is not None
+        assert info.disable_model_invocation is False
+        assert info.allowed_tools is None
+
+    def test_hides_disable_model_invocation_from_prompt(
+        self, mock_config: MagicMock, skills_dir: Path
+    ) -> None:
+        visible_path = skills_dir / "visible-skill"
+        visible_path.mkdir()
+        (visible_path / "SKILL.md").write_text(
+            """---
+name: visible-skill
+description: Visible to the model.
+---
+"""
+        )
+        hidden_path = skills_dir / "quiet-skill"
+        hidden_path.mkdir()
+        (hidden_path / "SKILL.md").write_text(
+            """---
+name: quiet-skill
+description: Hidden from the model.
+disable-model-invocation: true
+---
+"""
+        )
+
+        manager = SkillManager(mock_config)
+        section = manager.get_skills_prompt_section()
+
+        assert "<name>visible-skill</name>" in section
+        assert "quiet-skill" not in section
+        assert manager.get_skill_info("quiet-skill") is not None
+
+    def test_render_skill_invocation_strips_frontmatter_and_appends_args(
+        self, mock_config: MagicMock, skills_dir: Path
+    ) -> None:
+        skill_path = skills_dir / "pdf"
+        skill_path.mkdir()
+        (skill_path / "SKILL.md").write_text(
+            """---
+name: pdf
+description: Work with PDFs.
+---
+
+# PDF Skill
+
+Follow the instructions.
+"""
+        )
+
+        manager = SkillManager(mock_config)
+        message = manager.render_skill_invocation("pdf", "extract pages 2-3")
+
+        assert message.startswith(
+            f'<skill name="pdf" location="{(skill_path / "SKILL.md").resolve()}">'
+        )
+        assert "# PDF Skill" in message
+        assert "Follow the instructions." in message
+        assert "description: Work with PDFs." not in message
+        assert message.endswith("extract pages 2-3\n</skill>")
+
+    def test_render_skill_invocation_raises_for_unknown_skill(
+        self, mock_config: MagicMock, skills_dir: Path
+    ) -> None:
+        manager = SkillManager(mock_config)
+
+        with pytest.raises(SkillNotFoundError):
+            manager.render_skill_invocation("missing")
+
+
+class TestAdditionalSkillSources:
+    """Tests for .agents/skills discovery and precedence."""
+
+    def test_discovers_skills_from_project_agents_directory(
+        self, mock_config: MagicMock, tmp_path: Path
+    ) -> None:
+        skill_path = tmp_path / ".agents" / "skills" / "agents-skill"
+        skill_path.mkdir(parents=True)
+        (skill_path / "SKILL.md").write_text(
+            """---
+name: agents-skill
+description: Discovered from .agents/skills.
+---
+"""
+        )
+
+        manager = SkillManager(mock_config)
+        info = manager.get_skill_info("agents-skill")
+
+        assert info is not None
+        assert info.description == "Discovered from .agents/skills."
+
+    def test_project_qqcode_skills_win_over_agents_skills(
+        self, mock_config: MagicMock, skills_dir: Path, tmp_path: Path
+    ) -> None:
+        qqcode_skill = skills_dir / "duplicate"
+        qqcode_skill.mkdir()
+        (qqcode_skill / "SKILL.md").write_text(
+            """---
+name: duplicate
+description: From .qqcode.
+---
+"""
+        )
+        agents_skill = tmp_path / ".agents" / "skills" / "duplicate"
+        agents_skill.mkdir(parents=True)
+        (agents_skill / "SKILL.md").write_text(
+            """---
+name: duplicate
+description: From .agents.
+---
+"""
+        )
+
+        manager = SkillManager(mock_config)
+        info = manager.get_skill_info("duplicate")
+
+        assert info is not None
+        assert info.description == "From .qqcode."
+        assert info.path == qqcode_skill / "SKILL.md"

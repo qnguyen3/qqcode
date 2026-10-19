@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+#
+# Example sandbox image for QQcode (see docs/sandboxing.md).
+# Build:  docker build -f examples/docker/Dockerfile.qqcode -t qqcode:latest .
+# Run:    docker run --rm -it -e MISTRAL_API_KEY -v "$PWD:/workspace" -w /workspace qqcode:latest --no-trust -p "..."
+
+FROM python:3.12-slim
+
+ARG QQCODE_VERSION=1.2.0
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    QQCODE_HOME=/home/qqcode/.qqcode
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates git ripgrep \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir "qqcode==${QQCODE_VERSION}"
+
+RUN useradd --create-home --uid 10001 qqcode \
+    && install -d -o qqcode -g qqcode /workspace "${QQCODE_HOME}"
+
+USER qqcode
+WORKDIR /workspace
+
+ENTRYPOINT ["qqcode"]
+CMD ["--help"]

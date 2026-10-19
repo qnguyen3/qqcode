@@ -1,0 +1,54 @@
+name: Update Models
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+
+      - name: Install uv with caching
+        uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # v7
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Regenerate the built-in model catalog
+        run: uv run python scripts/generate_models.py --report "$RUNNER_TEMP/model-report.md"
+
+      - name: Open a pull request when the catalog changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain -- vibe/core/data)" ]]; then
+            echo "Model catalog is unchanged."
+            exit 0
+          fi
+
+          branch="chore/update-models"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add vibe/core/data
+          git commit -m "chore(models): refresh the built-in model catalog"
+          git push --force origin "$branch"
+
+          # The branch is reused, so an open pull request already tracks it.
+          if [[ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')" ]]; then
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore(models): refresh the built-in model catalog" \
+              --body-file "$RUNNER_TEMP/model-report.md"
+          fi

@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Protocol
 from vibe.core.types import AvailableTool, LLMChunk, LLMMessage, StrToolChoice
 
 if TYPE_CHECKING:
-    from vibe.core.config import ModelConfig
+    from vibe.core.config import ModelConfig, ThinkingLevel
+    from vibe.core.llm.cache import CachePlan
 
 
 class BackendLike(Protocol):
@@ -35,6 +36,8 @@ class BackendLike(Protocol):
         max_tokens: int | None,
         tool_choice: StrToolChoice | AvailableTool | None,
         extra_headers: dict[str, str] | None,
+        cache_plan: CachePlan | None = None,
+        thinking_level: ThinkingLevel | None = None,
     ) -> LLMChunk:
         """Complete a chat conversation using the specified model and provider.
 
@@ -46,6 +49,7 @@ class BackendLike(Protocol):
             max_tokens: Maximum tokens to generate
             tool_choice: How to choose tools (auto, none, or specific tool)
             extra_headers: Additional HTTP headers to include
+            cache_plan: Optional prompt-cache policy for the request
 
         Returns:
             LLMChunk containing the response message and usage information
@@ -68,6 +72,8 @@ class BackendLike(Protocol):
         max_tokens: int | None,
         tool_choice: StrToolChoice | AvailableTool | None,
         extra_headers: dict[str, str] | None,
+        cache_plan: CachePlan | None = None,
+        thinking_level: ThinkingLevel | None = None,
     ) -> AsyncGenerator[LLMChunk, None]:
         """Equivalent of the complete method, but yields LLMEvent objects
         instead of a single LLMEvent.
@@ -80,6 +86,7 @@ class BackendLike(Protocol):
             max_tokens: Maximum tokens to generate
             tool_choice: How to choose tools (auto, none, or specific tool)
             extra_headers: Additional HTTP headers to include
+            cache_plan: Optional prompt-cache policy for the request
 
         Returns:
             AsyncGenerator[LLMEvent, None] yielding LLMEvent objects

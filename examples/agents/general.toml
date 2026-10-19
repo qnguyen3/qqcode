@@ -1,0 +1,11 @@
+# Default subagent: read-only, no nested delegation.
+# Install as ~/.qqcode/agents/general.toml (or a project .qqcode/agents/general.toml).
+system_prompt_id = "cli"
+
+# Read-only toolset; the runner also enforces a path sandbox around the
+# parent's working directory.
+enabled_tools = ["read_file", "grep", "find", "ls"]
+
+# These are forced by the runner in every child config; listing them here keeps
+# the intent explicit.
+disabled_tools = ["task", "skill"]

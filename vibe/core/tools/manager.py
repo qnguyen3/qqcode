@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from fnmatch import fnmatch
 import importlib.util
 import inspect
 from logging import getLogger
@@ -11,7 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 from vibe import VIBE_ROOT
 from vibe.core.config import get_vibe_home
-from vibe.core.tools.base import BaseTool, BaseToolConfig
+from vibe.core.packages import package_resource_dirs
+from vibe.core.tools.base import BaseTool, BaseToolConfig, ToolExposure
+from vibe.core.tools.file_mutation_queue import FileMutationQueue
 from vibe.core.tools.mcp import (
     RemoteTool,
     create_mcp_http_proxy_tool_class,
@@ -19,12 +22,14 @@ from vibe.core.tools.mcp import (
     list_tools_http,
     list_tools_stdio,
 )
+from vibe.core.tools.search import TOOL_SEARCH_TOOL_NAME
 from vibe.core.utils import run_sync
 
 logger = getLogger("vibe")
 
 if TYPE_CHECKING:
     from vibe.core.config import MCPHttp, MCPStdio, MCPStreamableHttp, VibeConfig
+    from vibe.core.mcp.manager import MCPManager
     from vibe.core.skills.manager import SkillManager
 
 
@@ -43,20 +48,54 @@ class ToolManager:
     """
 
     def __init__(
-        self, config: VibeConfig, skill_manager: SkillManager | None = None
+        self,
+        config: VibeConfig,
+        skill_manager: SkillManager | None = None,
+        mcp_manager: MCPManager | None = None,
+        tools_changed_callback: Callable[[], None] | None = None,
     ) -> None:
         self._config = config
         self._skill_manager = skill_manager
+        self._mcp_manager = mcp_manager
+        self._tools_changed_callback = tools_changed_callback
+        self._mcp_tool_names: set[str] = set()
+        self._exposure: dict[str, ToolExposure] = {}
+        self._exposed: set[str] = set()
         self._instances: dict[str, BaseTool] = {}
         self._search_paths: list[Path] = self._compute_search_paths(config)
+        self.file_mutation_queue = FileMutationQueue()
 
-        self._available: dict[str, type[BaseTool]] = {
-            cls.get_name(): cls for cls in self._iter_tool_classes(self._search_paths)
-        }
-        self._integrate_mcp()
+        self._available: dict[str, type[BaseTool]] = {}
+        for cls in self._iter_tool_classes(self._search_paths):
+            name = cls.get_name()
+            if (
+                name == "run_tools_script"
+                and not self._config.tool_runtime.script.enabled
+            ):
+                continue
+            if name in self._available:
+                logger.warning(
+                    "Duplicate tool '%s' from %s overrides an earlier definition",
+                    name,
+                    cls.__module__,
+                )
+            self._available[name] = cls
+        if mcp_manager is not None:
+            self._apply_mcp_tools()
+            mcp_manager.on_tools_changed(self._apply_mcp_tools)
+        else:
+            # Compatibility shim: connect-per-call discovery when no manager
+            # is provided by the caller.
+            self._integrate_mcp()
+        self._recompute_exposure()
 
     @staticmethod
     def _compute_search_paths(config: VibeConfig) -> list[Path]:
+        """Compute tool search paths in increasing priority order.
+
+        Later paths win on name collisions: project > package > global >
+        explicit ``tool_paths`` > builtins.
+        """
         paths: list[Path] = [DEFAULT_TOOL_DIR]
 
         for p in config.tool_paths:
@@ -64,16 +103,24 @@ class ToolManager:
             if path.is_dir():
                 paths.append(path)
 
-        cwd = config.effective_workdir
-        for directory in (cwd, *cwd.parents):
-            tools_dir = directory / ".qqcode" / "tools"
-            if tools_dir.is_dir():
-                paths.append(tools_dir)
-                break
-
         global_tools = get_vibe_home() / "tools"
         if global_tools.is_dir():
             paths.append(global_tools)
+
+        paths.extend(package_resource_dirs(config.packages, "tools"))
+
+        if config.project_trusted:
+            cwd = config.effective_workdir
+            for directory in (cwd, *cwd.parents):
+                tools_dir = directory / ".qqcode" / "tools"
+                if tools_dir.is_dir():
+                    paths.append(tools_dir)
+                    break
+        else:
+            logger.debug(
+                "Skipping project tool discovery in %s: project is not trusted",
+                config.effective_workdir,
+            )
 
         unique: list[Path] = []
         seen: set[Path] = set()
@@ -141,6 +188,130 @@ class ToolManager:
 
     def available_tools(self) -> dict[str, type[BaseTool]]:
         return dict(self._available)
+
+    def exposure_for(self, name: str) -> ToolExposure:
+        """Return the resolved exposure for a registered tool."""
+        return self._exposure.get(name, "direct")
+
+    def deferred_pool(self) -> dict[str, str]:
+        """Deferred tools available to ``tool_search``, keyed by name."""
+        return {
+            name: (tool_class.description or "")
+            for name, tool_class in self._available.items()
+            if self._exposure.get(name) == "deferred"
+        }
+
+    def tool_search_class(self) -> type[BaseTool] | None:
+        """The ``tool_search`` builtin when at least one tool is deferred."""
+        if not self.deferred_pool():
+            return None
+        return self._available.get(TOOL_SEARCH_TOOL_NAME)
+
+    def expose(self, names: list[str]) -> list[str]:
+        """Expose deferred tools for the current turn (one-shot)."""
+        pool = self.deferred_pool()
+        exposed = [name for name in names if name in pool]
+        self._exposed.update(exposed)
+        return exposed
+
+    def model_visible_tools(self) -> list[type[BaseTool]]:
+        """Tool classes whose schemas may be sent to the model."""
+        visible: list[type[BaseTool]] = []
+        for name, tool_class in self._available.items():
+            match self._exposure.get(name, "direct"):
+                case "hidden":
+                    continue
+                case "deferred":
+                    if name in self._exposed:
+                        visible.append(tool_class)
+                case _:
+                    visible.append(tool_class)
+        return visible
+
+    def reset_deferred_exposure(self) -> None:
+        """Expire one-shot exposure of deferred tools."""
+        self._exposed.clear()
+        if self._mcp_manager is not None:
+            self._mcp_manager.reset_deferred_activation()
+
+    def apply_mcp_tools(self) -> None:
+        """Re-sync MCP tool classes from the manager (also used as a callback)."""
+        self._apply_mcp_tools()
+
+    def _apply_mcp_tools(self) -> None:
+        manager = self._mcp_manager
+        if manager is None:
+            return
+        classes = {cls.get_name(): cls for cls in manager.registered_tool_classes()}
+        changed = False
+
+        for name in list(self._mcp_tool_names):
+            if name not in classes:
+                self._available.pop(name, None)
+                self._instances.pop(name, None)
+                self._mcp_tool_names.discard(name)
+                changed = True
+
+        for name, tool_class in classes.items():
+            if self._available.get(name) is not tool_class:
+                self._available[name] = tool_class
+                self._instances.pop(name, None)
+                self._mcp_tool_names.add(name)
+                changed = True
+
+        self._recompute_exposure()
+        if changed and self._tools_changed_callback is not None:
+            self._tools_changed_callback()
+
+    def _config_exposure(self, name: str) -> ToolExposure | None:
+        """Resolve ``[tools.exposure]`` globs; the last match wins."""
+        resolved: ToolExposure | None = None
+        for pattern, exposure in self._config.tool_runtime.exposure.items():
+            if fnmatch(name, pattern):
+                resolved = exposure
+        return resolved
+
+    def _recompute_exposure(self) -> None:
+        """Resolve the exposure of every registered tool.
+
+        Priority: ``[tools.exposure]`` overrides, MCP server exposure, then the
+        tool class default. Large MCP tool sets are deferred automatically.
+        """
+        hidden = self._mcp_manager.hidden_tool_names() if self._mcp_manager else set()
+        mcp_direct = [
+            name
+            for name in self._mcp_tool_names
+            if name not in hidden
+            and self._config_exposure(name) is None
+            and self._available[name].exposure in {"direct", "model_only"}
+        ]
+        auto_defer = len(mcp_direct) > self._config.tool_runtime.defer_when_more_than
+
+        self._exposure = {
+            name: self._resolve_exposure(
+                name,
+                hidden=name in hidden,
+                auto_defer=auto_defer and name in mcp_direct,
+            )
+            for name in self._available
+        }
+        if not self.deferred_pool():
+            self._exposed.clear()
+        if TOOL_SEARCH_TOOL_NAME in self._available:
+            self._exposure[TOOL_SEARCH_TOOL_NAME] = (
+                "direct" if self.deferred_pool() else "hidden"
+            )
+
+    def _resolve_exposure(
+        self, name: str, *, hidden: bool, auto_defer: bool
+    ) -> ToolExposure:
+        if (override := self._config_exposure(name)) is not None:
+            return override
+        if hidden:
+            return "hidden"
+        if auto_defer:
+            return "deferred"
+        return self._available[name].exposure
 
     def _integrate_mcp(self) -> None:
         if not self._config.mcp_servers:
@@ -247,7 +418,10 @@ class ToolManager:
         if user_overrides is None:
             merged_dict = default_config.model_dump()
         else:
-            merged_dict = {**default_config.model_dump(), **user_overrides.model_dump()}
+            merged_dict = {
+                **default_config.model_dump(),
+                **user_overrides.model_dump(exclude_unset=True),
+            }
 
         if self._config.workdir is not None:
             merged_dict["workdir"] = self._config.workdir
@@ -273,16 +447,34 @@ class ToolManager:
 
         # Special handling for the Skill tool - inject SkillManager
         if tool_name == "skill" and self._skill_manager is not None:
-            from vibe.core.tools.builtins.skill import Skill
+            from vibe.core.tools.builtins.skill import Skill, SkillConfig
 
-            # Cast config to SkillConfig type (get_tool_config returns correct type)
-            skill_config = tool_config  # type: ignore[assignment]
-            self._instances[tool_name] = Skill.create_with_skill_manager(
-                skill_config, self._skill_manager
-            )
+            if isinstance(tool_config, SkillConfig):
+                instance = Skill.create_with_skill_manager(
+                    tool_config, self._skill_manager
+                )
+                instance.state.file_mutation_queue = self.file_mutation_queue
+                self._instances[tool_name] = instance
+                return self._instances[tool_name]
+
+        # Special handling for tool_search - it reads the deferred tool pool
+        if tool_name == TOOL_SEARCH_TOOL_NAME:
+            from vibe.core.tools.builtins.tool_search import ToolSearch
+
+            search = ToolSearch.create_with_manager(tool_config, self)
+            search.state.file_mutation_queue = self.file_mutation_queue
+            self._instances[tool_name] = search
             return self._instances[tool_name]
 
-        self._instances[tool_name] = tool_class.from_config(tool_config)
+        instance = tool_class.from_config(tool_config)
+        instance.state.file_mutation_queue = self.file_mutation_queue
+        if tool_name == "run_tools_script":
+            from vibe.core.tools.script_sandbox import ToolBridge
+
+            attach_bridge = getattr(instance, "attach_bridge", None)
+            if callable(attach_bridge):
+                attach_bridge(ToolBridge(self, config=self._config))
+        self._instances[tool_name] = instance
         return self._instances[tool_name]
 
     def reset_all(self) -> None:

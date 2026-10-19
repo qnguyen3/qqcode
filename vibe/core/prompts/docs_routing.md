@@ -1,0 +1,1 @@
+When the user asks about QQcode itself (configuration, slash commands, tools, sessions, prompt templates, MCP), consult the QQcode documentation in the repository (`README.md` and `docs/`) before answering from memory.

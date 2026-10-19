@@ -22,6 +22,8 @@ from vibe.core.tools.base import BaseToolConfig, ToolPermission
 from vibe.core.tools.builtins.todo import TodoArgs
 from vibe.core.types import (
     AssistantEvent,
+    BaseEvent,
+    ContextUsageEvent,
     FunctionCall,
     LLMChunk,
     LLMMessage,
@@ -35,6 +37,14 @@ from vibe.core.utils import (
     CancellationReason,
     get_user_cancellation_message,
 )
+
+
+async def collect_agent_events(agent: Agent, prompt: str) -> list[BaseEvent]:
+    return [
+        event
+        async for event in agent.act(prompt)
+        if not isinstance(event, ContextUsageEvent)
+    ]
 
 
 class InjectBeforeMiddleware:
@@ -152,7 +162,7 @@ async def test_act_yields_assistant_event_with_usage_stats() -> None:
     backend = FakeBackend([mock_llm_chunk(content="Pong!")])
     agent = Agent(make_config(), backend=backend)
 
-    events = [ev async for ev in agent.act("Ping?")]
+    events = await collect_agent_events(agent, "Ping?")
 
     assert len(events) == 1
     ev = events[-1]
@@ -177,7 +187,7 @@ async def test_act_streams_batched_chunks_in_order() -> None:
     ])
     agent = Agent(make_config(), backend=backend, enable_streaming=True)
 
-    events = [event async for event in agent.act("Stream, please.")]
+    events = await collect_agent_events(agent, "Stream, please.")
 
     assert len(events) == 2
     assert [event.content for event in events if isinstance(event, AssistantEvent)] == [
@@ -211,7 +221,7 @@ async def test_act_handles_streaming_with_tool_call_events_in_sequence() -> None
         enable_streaming=True,
     )
 
-    events = [event async for event in agent.act("What about my todos?")]
+    events = await collect_agent_events(agent, "What about my todos?")
 
     assert [type(event) for event in events] == [
         AssistantEvent,
@@ -253,7 +263,7 @@ async def test_act_handles_tool_call_chunk_with_content() -> None:
         enable_streaming=True,
     )
 
-    events = [event async for event in agent.act("Check todos with content.")]
+    events = await collect_agent_events(agent, "Check todos with content.")
 
     assert [type(event) for event in events] == [
         AssistantEvent,
@@ -298,7 +308,7 @@ async def test_act_merges_streamed_tool_call_arguments() -> None:
         enable_streaming=True,
     )
 
-    events = [event async for event in agent.act("Merge streamed tool call args.")]
+    events = await collect_agent_events(agent, "Merge streamed tool call args.")
 
     assert [type(event) for event in events] == [
         AssistantEvent,
@@ -399,7 +409,7 @@ async def test_act_handles_user_cancellation_during_streaming() -> None:
     )
     agent.interaction_logger.save_interaction = AsyncMock(return_value=None)
 
-    events = [event async for event in agent.act("Cancel mid stream?")]
+    events = await collect_agent_events(agent, "Cancel mid stream?")
 
     assert [type(event) for event in events] == [
         AssistantEvent,

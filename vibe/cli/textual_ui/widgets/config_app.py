@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, ClassVar, TypedDict
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Container, Vertical
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.message import Message
 from textual.theme import BUILTIN_THEMES
 from textual.widgets import Static
@@ -46,9 +46,10 @@ class ConfigApp(Container):
             super().__init__()
             self.changes = changes
 
-    def __init__(self, config: VibeConfig) -> None:
+    def __init__(self, config: VibeConfig, focus_key: str | None = None) -> None:
         super().__init__(id="config-app")
         self.config = config
+        self.focus_key = focus_key
         self.selected_index = 0
         self.changes: dict[str, str] = {}
 
@@ -101,10 +102,11 @@ class ConfigApp(Container):
 
             yield Static("")
 
-            for _ in self.settings:
-                widget = Static("", classes="settings-option")
-                self.setting_widgets.append(widget)
-                yield widget
+            with VerticalScroll(id="config-list"):
+                for _ in self.settings:
+                    widget = Static("", classes="settings-option")
+                    self.setting_widgets.append(widget)
+                    yield widget
 
             yield Static("")
 
@@ -115,6 +117,15 @@ class ConfigApp(Container):
 
     def on_mount(self) -> None:
         self._sync_model_options_and_selection(post_messages=False)
+        if self.focus_key is not None:
+            self.selected_index = next(
+                (
+                    index
+                    for index, setting in enumerate(self.settings)
+                    if setting["key"] == self.focus_key
+                ),
+                0,
+            )
         self._update_display()
         self.focus()
 
@@ -186,6 +197,7 @@ class ConfigApp(Container):
             self.post_message(self.SettingChanged(key="active_model", value=new_model))
 
     def _update_display(self) -> None:
+        selected_widget: Static | None = None
         for i, (setting, widget) in enumerate(
             zip(self.settings, self.setting_widgets, strict=True)
         ):
@@ -205,8 +217,12 @@ class ConfigApp(Container):
 
             if is_selected:
                 widget.add_class("settings-value-cycle-selected")
+                selected_widget = widget
             else:
                 widget.add_class("settings-value-cycle-unselected")
+
+        if selected_widget is not None:
+            selected_widget.scroll_visible(animate=False)
 
     def action_move_up(self) -> None:
         self.selected_index = (self.selected_index - 1) % len(self.settings)
@@ -248,6 +264,114 @@ class ConfigApp(Container):
 
     def action_close(self) -> None:
         self.post_message(self.ConfigClosed(changes=self.changes.copy()))
+
+    def on_blur(self, event: events.Blur) -> None:
+        self.call_after_refresh(self.focus)
+
+
+class ScopedModelsApp(Container):
+    """Toggle which model aliases are selectable (``enabled_models``)."""
+
+    can_focus = True
+    can_focus_children = False
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("up", "move_up", "Up", show=False),
+        Binding("down", "move_down", "Down", show=False),
+        Binding("space", "toggle_model", "Toggle", show=False),
+        Binding("enter", "toggle_model", "Toggle", show=False),
+    ]
+
+    class ScopesSaved(Message):
+        def __init__(self, scopes: list[str]) -> None:
+            super().__init__()
+            self.scopes = scopes
+
+    def __init__(self, config: VibeConfig) -> None:
+        super().__init__(id="scoped-models-app")
+        self.config = config
+        self.aliases = [model.alias for model in config.models]
+        self.selected: set[str] = {
+            alias for alias in self.aliases if config.is_model_in_scope(alias)
+        }
+        self.selected_index = 0
+        self.title_widget: Static | None = None
+        self.model_widgets: list[Static] = []
+        self.help_widget: Static | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="scoped-models-content"):
+            self.title_widget = Static("Model scope", classes="settings-title")
+            yield self.title_widget
+
+            yield Static("")
+
+            with VerticalScroll(id="scoped-models-list"):
+                for _ in self.aliases:
+                    widget = Static("", classes="settings-option")
+                    self.model_widgets.append(widget)
+                    yield widget
+
+            yield Static("")
+
+            self.help_widget = Static(
+                "↑↓ navigate  Space/Enter toggle  ESC save & exit",
+                classes="settings-help",
+            )
+            yield self.help_widget
+
+    def on_mount(self) -> None:
+        self._update_display()
+        self.focus()
+
+    def _update_display(self) -> None:
+        selected_widget: Static | None = None
+        for i, (alias, widget) in enumerate(
+            zip(self.aliases, self.model_widgets, strict=True)
+        ):
+            cursor = "› " if i == self.selected_index else "  "
+            marker = "[x]" if alias in self.selected else "[ ]"
+            widget.update(f"{cursor}{marker} {alias}")
+            widget.remove_class("settings-value-cycle-selected")
+            widget.remove_class("settings-value-cycle-unselected")
+            if i == self.selected_index:
+                widget.add_class("settings-value-cycle-selected")
+                selected_widget = widget
+            else:
+                widget.add_class("settings-value-cycle-unselected")
+
+        if selected_widget is not None:
+            selected_widget.scroll_visible(animate=False)
+
+    def _scopes(self) -> list[str]:
+        if len(self.selected) == len(self.aliases):
+            return []
+        return sorted(self.selected)
+
+    def action_move_up(self) -> None:
+        if not self.aliases:
+            return
+        self.selected_index = (self.selected_index - 1) % len(self.aliases)
+        self._update_display()
+
+    def action_move_down(self) -> None:
+        if not self.aliases:
+            return
+        self.selected_index = (self.selected_index + 1) % len(self.aliases)
+        self._update_display()
+
+    def action_toggle_model(self) -> None:
+        if not self.aliases:
+            return
+        alias = self.aliases[self.selected_index]
+        if alias in self.selected:
+            self.selected.discard(alias)
+        else:
+            self.selected.add(alias)
+        self._update_display()
+
+    def action_close(self) -> None:
+        self.post_message(self.ScopesSaved(self._scopes()))
 
     def on_blur(self, event: events.Blur) -> None:
         self.call_after_refresh(self.focus)

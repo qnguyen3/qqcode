@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" width="1200" height="1000" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#44505c"/>
+  </marker>
+</defs>
+<rect width="1200" height="1000" fill="#FFFFFF"/>
+<text x="24" y="34" font-size="20" font-weight="700" fill="#1F2933">QQcode — kiến trúc hệ thống (v1.2.0, đọc từ source)</text>
+<text x="24" y="56" font-size="12" fill="#52606D">Lớp trên gọi lớp dưới. Huy hiệu: S = bảo mật · C = lỗi hành vi · A = kiến trúc. Số khớp với docs/architecture-review/README.md</text>
+<text x="18" y="144" font-size="12" fill="#52606D">Điểm vào</text>
+<text x="18" y="284" font-size="12" fill="#52606D">Điều phối</text>
+<text x="18" y="424" font-size="12" fill="#52606D">Context &amp; trạng thái</text>
+<text x="18" y="564" font-size="12" fill="#52606D">Tool &amp; quyền</text>
+<text x="18" y="704" font-size="12" fill="#52606D">LLM</text>
+<text x="18" y="844" font-size="12" fill="#52606D">Bên ngoài</text>
+<line x1="352.5" y1="189.0" x2="426.7" y2="230.5" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="515.0" y1="190.0" x2="515.0" y2="229.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="677.5" y1="189.0" x2="603.3" y2="230.5" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="398.0" y1="280.0" x2="383.0" y2="280.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="602.5" y1="329.0" x2="676.7" y2="370.5" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="427.5" y1="329.0" x2="353.3" y2="370.5" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="515.0" y1="330.0" x2="515.0" y2="509.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="523.0" y="419.5" font-size="11" fill="#52606D">tool call → cổng quyền</text>
+<line x1="632.0" y1="280.0" x2="647.0" y2="280.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="265.0" y1="330.0" x2="265.0" y2="369.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="398.0" y1="560.0" x2="383.0" y2="560.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)" marker-start="url(#arr)"/>
+<line x1="632.0" y1="560.0" x2="647.0" y2="560.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)" marker-start="url(#arr)"/>
+<line x1="515.0" y1="610.0" x2="515.0" y2="789.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="523.0" y="699.5" font-size="11" fill="#52606D">MCP (stdio / http)</text>
+<line x1="1015.0" y1="470.0" x2="1015.0" y2="509.0" stroke="#44505C" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+<text x="1023.0" y="489.5" font-size="11" fill="#52606D">không gate</text>
+<line x1="265.0" y1="750.0" x2="265.0" y2="789.0" stroke="#44505C" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="150" y="92.0" width="230" height="96" rx="10" fill="#E3EEFB" stroke="#3B6EA8" stroke-width="1.4"/>
+<text x="162" y="116.0" font-size="14" font-weight="700" fill="#1F2933">CLI / TUI</text>
+<text x="162" y="137.0" font-size="11" fill="#3E4C59">vibe/cli/entrypoint.py</text>
+<text x="162" y="153.0" font-size="11" fill="#3E4C59">textual_ui/app.py · 2.8k dòng</text>
+<rect x="346" y="83.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="362" y="94.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C10</text>
+<rect x="400" y="92.0" width="230" height="96" rx="10" fill="#E3EEFB" stroke="#3B6EA8" stroke-width="1.4"/>
+<text x="412" y="116.0" font-size="14" font-weight="700" fill="#1F2933">Chế độ -p &amp; SDK</text>
+<text x="412" y="137.0" font-size="11" fill="#3E4C59">core/programmatic.py</text>
+<text x="412" y="153.0" font-size="11" fill="#3E4C59">vibe/sdk/ · core/events.py</text>
+<rect x="596" y="83.0" width="32" height="16" rx="8" fill="#6A1B9A"/>
+<text x="612" y="94.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">A1</text>
+<rect x="560" y="83.0" width="32" height="16" rx="8" fill="#6A1B9A"/>
+<text x="576" y="94.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">A2</text>
+<rect x="650" y="92.0" width="230" height="96" rx="10" fill="#E3EEFB" stroke="#3B6EA8" stroke-width="1.4"/>
+<text x="662" y="116.0" font-size="14" font-weight="700" fill="#1F2933">ACP server</text>
+<text x="662" y="137.0" font-size="11" fill="#3E4C59">vibe/acp/acp_agent.py</text>
+<text x="662" y="153.0" font-size="11" fill="#3E4C59">cho Zed và các IDE khác</text>
+<rect x="900" y="92.0" width="230" height="96" rx="10" fill="#E3EEFB" stroke="#3B6EA8" stroke-width="1.4"/>
+<text x="912" y="116.0" font-size="14" font-weight="700" fill="#1F2933">VS Code extension</text>
+<text x="912" y="137.0" font-size="11" fill="#3E4C59">TypeScript · spawn CLI</text>
+<text x="912" y="153.0" font-size="11" fill="#3E4C59">giao thức JSON qua stdio</text>
+<rect x="150" y="232.0" width="230" height="96" rx="10" fill="#FFF1DE" stroke="#B86E00" stroke-width="1.4"/>
+<text x="162" y="256.0" font-size="14" font-weight="700" fill="#1F2933">Middleware</text>
+<text x="162" y="277.0" font-size="11" fill="#3E4C59">giới hạn turn / giá</text>
+<text x="162" y="293.0" font-size="11" fill="#3E4C59">auto-compact · cảnh báo context</text>
+<rect x="400" y="232.0" width="230" height="96" rx="10" fill="#FFF1DE" stroke="#B86E00" stroke-width="3"/>
+<text x="412" y="256.0" font-size="14" font-weight="700" fill="#1F2933">Agent  (core/agent.py)</text>
+<text x="412" y="277.0" font-size="11" fill="#3E4C59">2.2k dòng · 93 method</text>
+<text x="412" y="293.0" font-size="11" fill="#3E4C59">vòng lặp · cổng duyệt · dispatch</text>
+<rect x="596" y="223.0" width="32" height="16" rx="8" fill="#B00020"/>
+<text x="612" y="234.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">S2</text>
+<rect x="560" y="223.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="576" y="234.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C1</text>
+<rect x="524" y="223.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="540" y="234.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C3</text>
+<rect x="650" y="232.0" width="230" height="96" rx="10" fill="#FFF1DE" stroke="#B86E00" stroke-width="1.4"/>
+<text x="662" y="256.0" font-size="14" font-weight="700" fill="#1F2933">Hooks</text>
+<text x="662" y="277.0" font-size="11" fill="#3E4C59">hooks/* (project: cần trust)</text>
+<text x="662" y="293.0" font-size="11" fill="#3E4C59">before/after request &amp; tool</text>
+<rect x="900" y="232.0" width="230" height="96" rx="10" fill="#FFF1DE" stroke="#B86E00" stroke-width="1.4"/>
+<text x="912" y="256.0" font-size="14" font-weight="700" fill="#1F2933">Subagent</text>
+<text x="912" y="277.0" font-size="11" fill="#3E4C59">subagent.py · tool task</text>
+<text x="912" y="293.0" font-size="11" fill="#3E4C59">agent con, budget, song song</text>
+<rect x="150" y="372.0" width="230" height="96" rx="10" fill="#E6F4EA" stroke="#2E7D32" stroke-width="1.4"/>
+<text x="162" y="396.0" font-size="14" font-weight="700" fill="#1F2933">Context</text>
+<text x="162" y="417.0" font-size="11" fill="#3E4C59">builder: replay entry log</text>
+<text x="162" y="433.0" font-size="11" fill="#3E4C59">compactor: cut + tóm tắt</text>
+<rect x="346" y="363.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="362" y="374.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C2</text>
+<rect x="650" y="372.0" width="230" height="96" rx="10" fill="#E6F4EA" stroke="#2E7D32" stroke-width="1.4"/>
+<text x="662" y="396.0" font-size="14" font-weight="700" fill="#1F2933">Session store</text>
+<text x="662" y="417.0" font-size="11" fill="#3E4C59">sessions/*.jsonl (append)</text>
+<text x="662" y="433.0" font-size="11" fill="#3E4C59">recorder · legacy .json</text>
+<rect x="900" y="372.0" width="230" height="96" rx="10" fill="#E6F4EA" stroke="#2E7D32" stroke-width="1.4"/>
+<text x="912" y="396.0" font-size="14" font-weight="700" fill="#1F2933">Config &amp; trust</text>
+<text x="912" y="417.0" font-size="11" fill="#3E4C59">VibeConfig · trust.toml</text>
+<text x="912" y="433.0" font-size="11" fill="#3E4C59">CONFIG_DIR tính lúc import</text>
+<rect x="1096" y="363.0" width="32" height="16" rx="8" fill="#B00020"/>
+<text x="1112" y="374.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">S4</text>
+<rect x="1060" y="363.0" width="32" height="16" rx="8" fill="#6A1B9A"/>
+<text x="1076" y="374.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">A4</text>
+<rect x="150" y="512.0" width="230" height="96" rx="10" fill="#F1E7FB" stroke="#7B3FB0" stroke-width="1.4"/>
+<text x="162" y="536.0" font-size="14" font-weight="700" fill="#1F2933">Builtin tools</text>
+<text x="162" y="557.0" font-size="11" fill="#3E4C59">bash · read / write / edit</text>
+<text x="162" y="573.0" font-size="11" fill="#3E4C59">grep · find · ls · todo · skill</text>
+<rect x="346" y="503.0" width="32" height="16" rx="8" fill="#B00020"/>
+<text x="362" y="514.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">S1</text>
+<rect x="310" y="503.0" width="32" height="16" rx="8" fill="#B00020"/>
+<text x="326" y="514.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">S3</text>
+<rect x="400" y="512.0" width="230" height="96" rx="10" fill="#F1E7FB" stroke="#7B3FB0" stroke-width="1.4"/>
+<text x="412" y="536.0" font-size="14" font-weight="700" fill="#1F2933">ToolManager</text>
+<text x="412" y="557.0" font-size="11" fill="#3E4C59">discovery bằng dynamic import</text>
+<text x="412" y="573.0" font-size="11" fill="#3E4C59">exposure · MCP proxy</text>
+<rect x="596" y="503.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="612" y="514.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C5</text>
+<rect x="560" y="503.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="576" y="514.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C6</text>
+<rect x="650" y="512.0" width="230" height="96" rx="10" fill="#F1E7FB" stroke="#7B3FB0" stroke-width="1.4"/>
+<text x="662" y="536.0" font-size="14" font-weight="700" fill="#1F2933">run_tools_script</text>
+<text x="662" y="557.0" font-size="11" fill="#3E4C59">ScriptSandbox → worker</text>
+<text x="662" y="573.0" font-size="11" fill="#3E4C59">rlimit · AST guard · bridge</text>
+<rect x="846" y="503.0" width="32" height="16" rx="8" fill="#B00020"/>
+<text x="862" y="514.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">S1</text>
+<rect x="900" y="512.0" width="230" height="96" rx="10" fill="#F1E7FB" stroke="#7B3FB0" stroke-width="1.4"/>
+<text x="912" y="536.0" font-size="14" font-weight="700" fill="#1F2933">Skills</text>
+<text x="912" y="557.0" font-size="11" fill="#3E4C59">skills/manager.py</text>
+<text x="912" y="573.0" font-size="11" fill="#3E4C59">.qqcode/skills: không cần trust</text>
+<rect x="1096" y="503.0" width="32" height="16" rx="8" fill="#B00020"/>
+<text x="1112" y="514.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">S4</text>
+<rect x="150" y="652.0" width="230" height="96" rx="10" fill="#E0F5F7" stroke="#00808A" stroke-width="1.4"/>
+<text x="162" y="676.0" font-size="14" font-weight="700" fill="#1F2933">GenericBackend</text>
+<text x="162" y="697.0" font-size="11" fill="#3E4C59">adapters: openai, anthropic,</text>
+<text x="162" y="713.0" font-size="11" fill="#3E4C59">responses, bedrock, google, pi</text>
+<rect x="346" y="643.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="362" y="654.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C4</text>
+<rect x="650" y="652.0" width="230" height="96" rx="10" fill="#E0F5F7" stroke="#00808A" stroke-width="1.4"/>
+<text x="662" y="676.0" font-size="14" font-weight="700" fill="#1F2933">Backend factory</text>
+<text x="662" y="697.0" font-size="11" fill="#3E4C59">BACKEND_FACTORY</text>
+<text x="662" y="713.0" font-size="11" fill="#3E4C59">Mistral · AnthropicSDK backend</text>
+<rect x="900" y="652.0" width="230" height="96" rx="10" fill="#E0F5F7" stroke="#00808A" stroke-width="1.4"/>
+<text x="912" y="676.0" font-size="14" font-weight="700" fill="#1F2933">OAuth &amp; auth</text>
+<text x="912" y="697.0" font-size="11" fill="#3E4C59">oauth/* · 9 nhà cung cấp</text>
+<text x="912" y="713.0" font-size="11" fill="#3E4C59">token file quyền 0600</text>
+<rect x="150" y="792.0" width="230" height="96" rx="10" fill="#F3F3F3" stroke="#6B6B6B" stroke-width="1.4"/>
+<text x="162" y="816.0" font-size="14" font-weight="700" fill="#1F2933">LLM provider APIs</text>
+<text x="162" y="837.0" font-size="11" fill="#3E4C59">OpenAI-compatible · Anthropic</text>
+<text x="162" y="853.0" font-size="11" fill="#3E4C59">Mistral · Bedrock · Vertex</text>
+<rect x="400" y="792.0" width="230" height="96" rx="10" fill="#F3F3F3" stroke="#6B6B6B" stroke-width="1.4"/>
+<text x="412" y="816.0" font-size="14" font-weight="700" fill="#1F2933">MCP servers</text>
+<text x="412" y="837.0" font-size="11" fill="#3E4C59">stdio · http · OAuth</text>
+<text x="412" y="853.0" font-size="11" fill="#3E4C59">mcp/* (client, manager)</text>
+<rect x="650" y="792.0" width="230" height="96" rx="10" fill="#F3F3F3" stroke="#6B6B6B" stroke-width="1.4"/>
+<text x="662" y="816.0" font-size="14" font-weight="700" fill="#1F2933">Hệ thống tệp &amp; git</text>
+<text x="662" y="837.0" font-size="11" fill="#3E4C59">file tools · git subprocess</text>
+<text x="662" y="853.0" font-size="11" fill="#3E4C59">system_prompt · session header</text>
+<rect x="846" y="783.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="862" y="794.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C11</text>
+<rect x="900" y="792.0" width="230" height="96" rx="10" fill="#F3F3F3" stroke="#6B6B6B" stroke-width="1.4"/>
+<text x="912" y="816.0" font-size="14" font-weight="700" fill="#1F2933">Shell (!cmd trong TUI)</text>
+<text x="912" y="837.0" font-size="11" fill="#3E4C59">bash tool (asyncio subprocess)</text>
+<text x="912" y="853.0" font-size="11" fill="#3E4C59">!cmd: subprocess.run đồng bộ</text>
+<rect x="1096" y="783.0" width="32" height="16" rx="8" fill="#C2410C"/>
+<text x="1112" y="794.5" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">C7</text>
+<rect x="24" y="912" width="16" height="14" rx="3" fill="#E3EEFB" stroke="#3B6EA8"/>
+<text x="46" y="924" font-size="12" fill="#3E4C59">Điểm vào</text>
+<rect x="128" y="912" width="16" height="14" rx="3" fill="#FFF1DE" stroke="#B86E00"/>
+<text x="150" y="924" font-size="12" fill="#3E4C59">Điều phối</text>
+<rect x="239" y="912" width="16" height="14" rx="3" fill="#E6F4EA" stroke="#2E7D32"/>
+<text x="261" y="924" font-size="12" fill="#3E4C59">Context &amp; trạng thái</text>
+<rect x="427" y="912" width="16" height="14" rx="3" fill="#F1E7FB" stroke="#7B3FB0"/>
+<text x="449" y="924" font-size="12" fill="#3E4C59">Tool &amp; quyền</text>
+<rect x="559" y="912" width="16" height="14" rx="3" fill="#E0F5F7" stroke="#00808A"/>
+<text x="581" y="924" font-size="12" fill="#3E4C59">LLM</text>
+<rect x="628" y="912" width="16" height="14" rx="3" fill="#F3F3F3" stroke="#6B6B6B"/>
+<text x="650" y="924" font-size="12" fill="#3E4C59">Bên ngoài</text>
+<text x="24" y="952" font-size="12" fill="#3E4C59">Mã: <tspan font-weight="700" fill="#B00020">S</tspan>1–4 bảo mật · <tspan font-weight="700" fill="#C2410C">C</tspan>1–14 lỗi hành vi · <tspan font-weight="700" fill="#6A1B9A">A</tspan>1–11 kiến trúc</text>
+<text x="24" y="976" font-size="11" fill="#7B8794">Nguồn: đọc trực tiếp source (main @ 3fa7510 + thay đổi chưa commit của bạn), tái hiện bằng docs/architecture-review/probes.py. Mũi tên nét đứt = ràng buộc không được gate.</text>
+</svg>

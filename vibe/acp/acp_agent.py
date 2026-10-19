@@ -59,6 +59,7 @@ from vibe.core import __version__
 from vibe.core.agent import Agent as VibeAgent
 from vibe.core.autocompletion.path_prompt_adapter import render_path_prompt
 from vibe.core.config import MissingAPIKeyError, VibeConfig, load_api_keys_from_env
+from vibe.core.mcp.manager import MCPManager
 from vibe.core.types import (
     AgentMode,
     AssistantEvent,
@@ -76,6 +77,7 @@ class AcpSession(BaseModel):
     agent: VibeAgent
     mode_id: VibeSessionMode = VibeSessionMode.APPROVAL_REQUIRED
     task: asyncio.Task[None] | None = None
+    mcp_manager: MCPManager | None = None
 
 
 class VibeAcpAgent(AcpAgent):
@@ -138,9 +140,7 @@ class VibeAcpAgent(AcpAgent):
             ),
             protocolVersion=PROTOCOL_VERSION,
             agentInfo=Implementation(
-                name="@qqcode/qqcode",
-                title="QQcode",
-                version=__version__,
+                name="@qqcode/qqcode", title="QQcode", version=__version__
             ),
             authMethods=auth_methods,
         )
@@ -167,16 +167,25 @@ class VibeAcpAgent(AcpAgent):
                 "message": "You must be authenticated before creating a new session"
             }) from e
 
-        agent = VibeAgent(config=config, auto_approve=False, enable_streaming=True)
+        mcp_manager = MCPManager(config)
+        await mcp_manager.start()
+        agent = VibeAgent(
+            config=config,
+            auto_approve=False,
+            enable_streaming=True,
+            mcp_manager=mcp_manager,
+        )
         # ACP (Zed) needs a permission request with toolCall.kind="switch_mode" to render
         # plan approval / mode switching UI. We implement that via the standard approval
         # callback mechanism, so also wire it for plan submissions.
-        agent.plan_approval_callback = self._create_plan_approval_callback(agent.session_id)
+        agent.plan_approval_callback = self._create_plan_approval_callback(
+            agent.session_id
+        )
         # NOTE: For now, we pin session.id to agent.session_id right after init time.
         # We should just use agent.session_id everywhere, but it can still change during
         # session lifetime (e.g. agent.compact is called).
         # We should refactor agent.session_id to make it immutable in ACP context.
-        session = AcpSession(id=agent.session_id, agent=agent)
+        session = AcpSession(id=agent.session_id, agent=agent, mcp_manager=mcp_manager)
         self.sessions[session.id] = session
 
         if not agent.auto_approve:
@@ -240,9 +249,7 @@ class VibeAcpAgent(AcpAgent):
 
             # Request permission from the user
             request = RequestPermissionRequest(
-                sessionId=session_id,
-                toolCall=tool_call,
-                options=TOOL_OPTIONS,
+                sessionId=session_id, toolCall=tool_call, options=TOOL_OPTIONS
             )
 
             response = await self.connection.requestPermission(request)
@@ -277,19 +284,13 @@ class VibeAcpAgent(AcpAgent):
                 status="pending",
                 content=[
                     ContentToolCallContent(
-                        type="content",
-                        content=TextContentBlock(
-                            type="text",
-                            text=plan,
-                        ),
+                        type="content", content=TextContentBlock(type="text", text=plan)
                     )
                 ],
             )
 
             request = RequestPermissionRequest(
-                sessionId=session_id,
-                toolCall=tool_call,
-                options=PLAN_EXIT_OPTIONS,
+                sessionId=session_id, toolCall=tool_call, options=PLAN_EXIT_OPTIONS
             )
 
             response = await self.connection.requestPermission(request)
@@ -311,15 +312,9 @@ class VibeAcpAgent(AcpAgent):
                 case VibeSessionMode.APPROVAL_REQUIRED:
                     return (True, AgentMode.INTERACTIVE.value)
                 case VibeSessionMode.PLAN:
-                    return (
-                        False,
-                        "User requested to stay in plan mode.",
-                    )
+                    return (False, "User requested to stay in plan mode.")
                 case _:
-                    return (
-                        False,
-                        "User requested revisions to the plan.",
-                    )
+                    return (False, "User requested revisions to the plan.")
 
         return plan_approval_callback
 
@@ -504,8 +499,7 @@ class VibeAcpAgent(AcpAgent):
                 new_mode = VibeSessionMode.from_agent_mode(event.new_mode)
                 session.mode_id = new_mode
                 yield CurrentModeUpdate(
-                    sessionUpdate="current_mode_update",
-                    currentModeId=new_mode,
+                    sessionUpdate="current_mode_update", currentModeId=new_mode
                 )
 
     @override

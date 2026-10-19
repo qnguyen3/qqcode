@@ -7,11 +7,7 @@ import pytest
 
 from vibe.acp.tools.builtins.edit import AcpEditState, Edit
 from vibe.core.tools.base import ToolError
-from vibe.core.tools.builtins.edit import (
-    EditArgs,
-    EditConfig,
-    EditResult,
-)
+from vibe.core.tools.builtins.edit import EditArgs, EditConfig, EditResult
 from vibe.core.types import ToolCallEvent, ToolResultEvent
 
 
@@ -77,10 +73,7 @@ class TestAcpEditBasic:
 class TestAcpEditExecution:
     @pytest.mark.asyncio
     async def test_run_success(
-        self,
-        acp_edit_tool: Edit,
-        mock_connection: MockConnection,
-        tmp_path: Path,
+        self, acp_edit_tool: Edit, mock_connection: MockConnection, tmp_path: Path
     ) -> None:
         test_file = tmp_path / "test_file.txt"
         test_file.write_text("original line 1\noriginal line 2\noriginal line 3")
@@ -192,9 +185,7 @@ class TestAcpEditExecution:
         )
 
         args = EditArgs(
-            file_path=str(test_file),
-            old_string="not found",
-            new_string="replacement",
+            file_path=str(test_file), old_string="not found", new_string="replacement"
         )
         with pytest.raises(ToolError) as exc_info:
             await tool.run(args)
@@ -218,11 +209,7 @@ class TestAcpEditExecution:
 
         test_file = tmp_path / "test.txt"
         test_file.touch()
-        args = EditArgs(
-            file_path=str(test_file),
-            old_string="old",
-            new_string="new",
-        )
+        args = EditArgs(file_path=str(test_file), old_string="old", new_string="new")
         with pytest.raises(ToolError) as exc_info:
             await tool.run(args)
 
@@ -249,11 +236,7 @@ class TestAcpEditExecution:
             ),
         )
 
-        args = EditArgs(
-            file_path=str(test_file),
-            old_string="old",
-            new_string="new",
-        )
+        args = EditArgs(file_path=str(test_file), old_string="old", new_string="new")
         with pytest.raises(ToolError) as exc_info:
             await tool.run(args)
 
@@ -293,11 +276,7 @@ class TestAcpEditExecution:
             ),
         )
 
-        args = EditArgs(
-            file_path=str(test_file),
-            old_string="old",
-            new_string="new",
-        )
+        args = EditArgs(file_path=str(test_file), old_string="old", new_string="new")
         with pytest.raises(ToolError) as exc_info:
             await tool.run(args)
 
@@ -310,9 +289,7 @@ class TestAcpEditSessionUpdates:
             tool_name="edit",
             tool_call_id="test_call_123",
             args=EditArgs(
-                file_path="/tmp/test.txt",
-                old_string="old text",
-                new_string="new text",
+                file_path="/tmp/test.txt", old_string="old text", new_string="new text"
             ),
             tool_class=Edit,
         )

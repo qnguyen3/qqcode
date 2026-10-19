@@ -16,7 +16,8 @@ Use the `bash` tool to run one-off shell commands.
 
 **Search Operations - DO NOT USE:**
 - `grep -r "pattern" .` → Use `grep(pattern="pattern", path=".")`
-- `find . -name "*.py"` → Use `bash("ls -la")` for current dir or `grep` with appropriate pattern
+- `find . -name "*.py"` → Use `find(pattern="*.py", path=".")`
+- `ls -la`, `dir` → Use `ls(path=".")`
 - `ag`, `ack`, `rg` commands → Use the `grep` tool
 - `locate` → Use `grep` tool
 
@@ -27,7 +28,7 @@ Use the `bash` tool to run one-off shell commands.
 
 **APPROPRIATE bash uses:**
 - System information: `pwd`, `whoami`, `date`, `uname -a`
-- Directory listings: `ls -la`, `tree` (if available)
+- Directory listings: `tree` (if available) — prefer the `ls` tool for plain listing
 - Git operations: `git status`, `git log --oneline -10`, `git diff`
 - Process info: `ps aux | grep process`, `top -n 1`
 - Network checks: `ping -c 1 google.com`, `curl -I https://example.com`

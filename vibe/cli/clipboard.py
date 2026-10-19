@@ -4,6 +4,17 @@ import pyperclip
 from textual.app import App
 
 
+def copy_text_to_clipboard(app: App, text: str, label: str) -> bool:
+    """Copy ``text`` to the clipboard, notifying the user. Returns success."""
+    try:
+        pyperclip.copy(text)
+    except Exception:
+        app.notify("Clipboard unavailable", severity="warning", timeout=3)
+        return False
+    app.notify(label, severity="information", timeout=2)
+    return True
+
+
 def copy_selection_to_clipboard(app: App) -> None:
     selected_texts = []
 

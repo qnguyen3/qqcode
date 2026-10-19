@@ -11,9 +11,16 @@ from pydantic import BaseModel, Field
 from vibe.core.tools.base import (
     BaseTool,
     BaseToolConfig,
+    BaseToolResult,
     BaseToolState,
     ToolError,
     ToolPermission,
+)
+from vibe.core.tools.truncate import (
+    DEFAULT_MAX_BYTES,
+    GREP_MAX_LINE_CHARS,
+    format_notice,
+    truncate_head,
 )
 from vibe.core.tools.ui import ToolCallDisplay, ToolResultDisplay, ToolUIData
 
@@ -37,6 +44,9 @@ class GrepToolConfig(BaseToolConfig):
     )
     default_timeout: int = Field(
         default=60, description="Default timeout for the search command in seconds."
+    )
+    timeout: float | None = Field(
+        default=120.0, description="Agent-level timeout for the whole tool invocation."
     )
     exclude_patterns: list[str] = Field(
         default=[
@@ -87,12 +97,14 @@ class GrepArgs(BaseModel):
     )
 
 
-class GrepResult(BaseModel):
+class GrepResult(BaseToolResult):
     matches: str
     match_count: int
-    was_truncated: bool = Field(
-        description="True if output was cut short by max_matches or max_output_bytes."
-    )
+    notice: str | None = None
+
+    @property
+    def was_truncated(self) -> bool:
+        return self.truncated
 
 
 class Grep(
@@ -103,6 +115,7 @@ class Grep(
         "Recursively search files for a regex pattern using ripgrep (rg) or grep. "
         "Respects .gitignore and .codeignore files by default when using ripgrep."
     )
+    scriptable: ClassVar[bool] = True
 
     def _detect_backend(self) -> GrepBackend:
         if shutil.which("rg"):
@@ -253,22 +266,33 @@ class Grep(
             raise ToolError(f"Error running grep: {exc}") from exc
 
     def _parse_output(self, stdout: str, max_matches: int) -> GrepResult:
-        output_lines = stdout.splitlines() if stdout else []
+        raw_lines = stdout.splitlines() if stdout else []
+        lines: list[str] = []
+        lines_shortened = False
+        for line in raw_lines:
+            if len(line) > GREP_MAX_LINE_CHARS:
+                lines.append(line[:GREP_MAX_LINE_CHARS] + "…")
+                lines_shortened = True
+            else:
+                lines.append(line)
 
-        truncated_lines = output_lines[:max_matches]
-        truncated_output = "\n".join(truncated_lines)
-
-        was_truncated = (
-            len(output_lines) > max_matches
-            or len(truncated_output) > self.config.max_output_bytes
+        max_bytes = min(self.config.max_output_bytes, DEFAULT_MAX_BYTES)
+        truncated = truncate_head(
+            "\n".join(lines), max_lines=max_matches, max_bytes=max_bytes
         )
 
-        final_output = truncated_output[: self.config.max_output_bytes]
+        notice = format_notice(truncated)
+        if lines_shortened:
+            shortened = (
+                f"Some lines were shortened to {GREP_MAX_LINE_CHARS} characters."
+            )
+            notice = f"{notice} {shortened}".strip()
 
         return GrepResult(
-            matches=final_output,
-            match_count=len(truncated_lines),
-            was_truncated=was_truncated,
+            matches=truncated.content,
+            match_count=len(truncated.content.splitlines()) if truncated.content else 0,
+            truncated=truncated.truncated or lines_shortened,
+            notice=notice or None,
         )
 
     @classmethod
@@ -308,6 +332,8 @@ class Grep(
         warnings = []
         if event.result.was_truncated:
             warnings.append("Output was truncated due to size/match limits")
+        if event.result.notice:
+            warnings.append(event.result.notice)
 
         return ToolResultDisplay(
             success=True,
@@ -316,6 +342,7 @@ class Grep(
             details={
                 "match_count": event.result.match_count,
                 "was_truncated": event.result.was_truncated,
+                "notice": event.result.notice,
                 "matches": event.result.matches,
             },
         )

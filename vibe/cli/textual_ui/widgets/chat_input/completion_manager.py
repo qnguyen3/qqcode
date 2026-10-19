@@ -56,3 +56,18 @@ class MultiCompletionManager:
         if self._active is not None:
             self._active.reset()
             self._active = None
+
+    def replace_controller(self, index: int, controller: CompletionController) -> None:
+        """Swap a controller in place, keeping the active selection coherent."""
+        if not 0 <= index < len(self._controllers):
+            return
+        current = self._controllers[index]
+        active = self._active
+        if active is not None and active is current:
+            active.reset()
+            self._active = controller
+        self._controllers[index] = controller
+
+    @property
+    def controllers(self) -> list[CompletionController]:
+        return list(self._controllers)

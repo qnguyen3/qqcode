@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 import pytest
@@ -9,13 +10,21 @@ import pytest
 from tests.mock.utils import mock_llm_chunk
 from tests.stubs.fake_backend import FakeBackend
 from tests.stubs.fake_tool import FakeTool
+from tests.stubs.sleep_tool import SleepTool
 from vibe.core.agent import Agent
-from vibe.core.config import SessionLoggingConfig, VibeConfig
+from vibe.core.config import (
+    SessionLoggingConfig,
+    SubagentConfig,
+    ToolRuntimeConfig,
+    VibeConfig,
+)
+from vibe.core.llm.format import get_active_tool_classes
 from vibe.core.tools.base import BaseToolConfig, ToolPermission
 from vibe.core.tools.builtins.todo import TodoItem
 from vibe.core.types import (
     AssistantEvent,
     BaseEvent,
+    ContextUsageEvent,
     FunctionCall,
     LLMMessage,
     Role,
@@ -28,7 +37,9 @@ from vibe.core.utils import ApprovalResponse
 
 
 async def act_and_collect_events(agent: Agent, prompt: str) -> list[BaseEvent]:
-    return [ev async for ev in agent.act(prompt)]
+    return [
+        ev async for ev in agent.act(prompt) if not isinstance(ev, ContextUsageEvent)
+    ]
 
 
 def make_config(todo_permission: ToolPermission = ToolPermission.ALWAYS) -> VibeConfig:
@@ -435,14 +446,13 @@ async def test_fill_missing_tool_responses_inserts_placeholders() -> None:
     assistant_msg = LLMMessage(
         role=Role.assistant, content="Calling tools...", tool_calls=tool_calls_messages
     )
-    agent.messages = [
-        agent.messages[0],
-        assistant_msg,
-        # only one tool responded: the second is missing
+    agent.add_message(assistant_msg)
+    # only one tool responded: the second is missing
+    agent.add_message(
         LLMMessage(
             role=Role.tool, tool_call_id="tc1", name="todo", content="Retrieved 0 todos"
-        ),
-    ]
+        )
+    )
 
     await act_and_collect_events(agent, "Proceed")
 
@@ -467,7 +477,7 @@ async def test_ensure_assistant_after_tool_appends_understood() -> None:
     tool_msg = LLMMessage(
         role=Role.tool, tool_call_id="tc_z", name="todo", content="Done"
     )
-    agent.messages = [agent.messages[0], tool_msg]
+    agent.add_message(tool_msg)
 
     await act_and_collect_events(agent, "Next")
 
@@ -475,3 +485,138 @@ async def test_ensure_assistant_after_tool_appends_understood() -> None:
     idx = next(i for i, m in enumerate(agent.messages) if m.role == Role.tool)
     assert agent.messages[idx + 1].role == Role.assistant
     assert agent.messages[idx + 1].content == "Understood."
+
+
+def sleep_call(call_id: str, seconds: float) -> ToolCall:
+    return ToolCall(
+        id=call_id,
+        function=FunctionCall(
+            name="sleep_tool",
+            arguments=json.dumps({"seconds": seconds, "label": call_id}),
+        ),
+    )
+
+
+def sleep_backend(calls: list[ToolCall]) -> FakeBackend:
+    return FakeBackend([
+        mock_llm_chunk(content="Working.", tool_calls=calls),
+        mock_llm_chunk(content="Done.", finish_reason="stop"),
+    ])
+
+
+def make_sleep_agent(
+    backend: FakeBackend, *, parallel: bool = True, sequential: list[str] | None = None
+) -> Agent:
+    config = VibeConfig(
+        session_logging=SessionLoggingConfig(enabled=False),
+        auto_compact_threshold=0,
+        enabled_tools=["sleep_tool"],
+        tools={"sleep_tool": BaseToolConfig(permission=ToolPermission.ALWAYS)},
+        tool_runtime=ToolRuntimeConfig(parallel=parallel, sequential=sequential or []),
+        system_prompt_id="tests",
+        include_project_context=False,
+        include_prompt_detail=False,
+    )
+    agent = Agent(config, auto_approve=True, backend=backend)
+    agent.tool_manager._available["sleep_tool"] = SleepTool
+    return agent
+
+
+@pytest.mark.asyncio
+async def test_independent_tool_calls_run_in_parallel() -> None:
+    parallel_agent = make_sleep_agent(
+        sleep_backend([sleep_call("call_1", 0.25), sleep_call("call_2", 0.25)])
+    )
+    start = time.perf_counter()
+    await act_and_collect_events(parallel_agent, "go")
+    parallel_elapsed = time.perf_counter() - start
+
+    sequential_agent = make_sleep_agent(
+        sleep_backend([sleep_call("call_1", 0.25), sleep_call("call_2", 0.25)]),
+        parallel=False,
+    )
+    start = time.perf_counter()
+    await act_and_collect_events(sequential_agent, "go")
+    sequential_elapsed = time.perf_counter() - start
+
+    assert parallel_elapsed < sequential_elapsed - 0.15
+
+
+@pytest.mark.asyncio
+async def test_tool_results_are_committed_in_call_order() -> None:
+    agent = make_sleep_agent(
+        sleep_backend([sleep_call("call_1", 0.2), sleep_call("call_2", 0.02)])
+    )
+
+    events = await act_and_collect_events(agent, "go")
+
+    tool_call_events = [event for event in events if isinstance(event, ToolCallEvent)]
+    result_events = [event for event in events if isinstance(event, ToolResultEvent)]
+    assert [event.tool_call_id for event in tool_call_events] == ["call_1", "call_2"]
+    assert [event.tool_call_id for event in result_events] == ["call_1", "call_2"]
+    assert result_events[0].duration is not None
+    assert result_events[1].duration is not None
+    assert result_events[0].duration > result_events[1].duration
+
+
+@pytest.mark.asyncio
+async def test_configured_sequential_tools_do_not_overlap() -> None:
+    agent = make_sleep_agent(
+        sleep_backend([sleep_call("call_1", 0.2), sleep_call("call_2", 0.2)]),
+        sequential=["sleep_tool"],
+    )
+
+    start = time.perf_counter()
+    await act_and_collect_events(agent, "go")
+    elapsed = time.perf_counter() - start
+
+    assert elapsed > 0.35
+
+
+@pytest.mark.asyncio
+async def test_parallel_false_runs_everything_sequentially() -> None:
+    agent = make_sleep_agent(
+        sleep_backend([sleep_call("call_1", 0.2), sleep_call("call_2", 0.2)]),
+        parallel=False,
+    )
+
+    start = time.perf_counter()
+    await act_and_collect_events(agent, "go")
+    elapsed = time.perf_counter() - start
+
+    assert elapsed > 0.35
+
+
+def make_subagent_agent(subagent_config: SubagentConfig) -> Agent:
+    config = VibeConfig(
+        session_logging=SessionLoggingConfig(enabled=False),
+        auto_compact_threshold=0,
+        subagent=subagent_config,
+        system_prompt_id="tests",
+        include_project_context=False,
+        include_prompt_detail=False,
+    )
+    return Agent(config, backend=FakeBackend([]))
+
+
+def test_task_tool_is_listed_when_subagent_enabled() -> None:
+    agent = make_subagent_agent(SubagentConfig(enabled=True))
+
+    names = {
+        tool_class.get_name()
+        for tool_class in get_active_tool_classes(agent.tool_manager, agent.config)
+    }
+
+    assert "task" in names
+
+
+def test_task_tool_is_hidden_when_subagent_disabled() -> None:
+    agent = make_subagent_agent(SubagentConfig(enabled=False))
+
+    names = {
+        tool_class.get_name()
+        for tool_class in get_active_tool_classes(agent.tool_manager, agent.config)
+    }
+
+    assert "task" not in names
+    assert "read_file" in names

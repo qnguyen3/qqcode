@@ -100,7 +100,7 @@ Screen {
     width: 1fr;
     height: auto;
     max-height: 16;
-    background: transparent;
+    background: $background;
     color: $text;
     border: none;
     padding: 0;
@@ -501,6 +501,15 @@ WelcomeBanner {
     height: auto;
 }
 
+#config-list,
+#scoped-models-list,
+#conversations-list,
+#fork-list {
+    width: 100%;
+    height: auto;
+    max-height: 18;
+}
+
 .settings-title {
     height: auto;
     text-style: bold;
@@ -822,4 +831,183 @@ ContextProgress {
     &.historical-tool-result-error {
         color: $text-error;
     }
+}
+
+/* Project Trust Modal */
+TrustScreen {
+    align: center middle;
+    background: $background 60%;
+}
+
+#trust-dialog {
+    width: 70;
+    height: auto;
+    background: $surface;
+    border: round $primary;
+    padding: 1 2;
+}
+
+#trust-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $primary;
+}
+
+#trust-body {
+    width: 100%;
+    height: auto;
+    margin: 1 0;
+    color: $foreground;
+}
+
+#trust-buttons {
+    width: 100%;
+    height: auto;
+    align-horizontal: center;
+}
+
+#trust-buttons Button {
+    margin: 0 1;
+}
+
+LoginScreen, SecretScreen, LoginDialogScreen, ModelSelectorScreen {
+    align: center middle;
+    background: $background 60%;
+}
+
+.model-dialog {
+    width: 76;
+    height: auto;
+    max-height: 80%;
+    background: $surface;
+    border: round $primary;
+    padding: 1 2;
+}
+
+.model-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $primary;
+}
+
+.model-hint {
+    width: 100%;
+    height: auto;
+    margin: 1 0 0 0;
+    color: $warning;
+}
+
+.model-search {
+    width: 100%;
+    margin: 1 0 0 0;
+    border: none;
+    background: $surface;
+}
+
+.model-list {
+    width: 100%;
+    height: auto;
+    max-height: 16;
+    margin: 1 0;
+}
+
+.model-option {
+    width: 100%;
+    height: auto;
+    color: $foreground;
+}
+
+.model-option-current {
+    color: $text-success;
+}
+
+.model-option-selected {
+    color: $primary;
+    text-style: bold;
+}
+
+.model-empty {
+    width: 100%;
+    color: $foreground 50%;
+}
+
+.model-help {
+    width: 100%;
+    height: auto;
+    color: $foreground 50%;
+}
+
+.login-dialog {
+    width: 76;
+    height: auto;
+    max-height: 80%;
+    background: $surface;
+    border: round $primary;
+    padding: 1 2;
+}
+
+.login-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $primary;
+}
+
+.login-search {
+    width: 100%;
+    margin: 1 0 0 0;
+    border: none;
+    background: $surface;
+}
+
+.login-list {
+    width: 100%;
+    height: auto;
+    max-height: 16;
+    margin: 1 0;
+}
+
+.login-option {
+    width: 100%;
+    height: auto;
+    color: $foreground;
+}
+
+.login-option-selected {
+    color: $primary;
+    text-style: bold;
+}
+
+.login-empty {
+    width: 100%;
+    color: $foreground 50%;
+}
+
+.login-help {
+    width: 100%;
+    height: auto;
+    color: $foreground 50%;
+}
+
+.login-body {
+    width: 100%;
+    height: auto;
+    max-height: 20;
+    margin: 1 0 0 0;
+}
+
+.login-status {
+    width: 100%;
+    height: auto;
+    margin: 1 0 0 0;
+    color: $foreground 50%;
+}
+
+.login-input {
+    width: 100%;
+    margin: 1 0 0 0;
+    border: none;
+    background: $surface;
 }

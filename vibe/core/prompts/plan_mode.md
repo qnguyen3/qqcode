@@ -3,12 +3,12 @@
 You are in **PLAN MODE**. You can explore and analyze the codebase but cannot make changes.
 
 ## Your Task
-1. Use read-only tools (`read_file`, `grep`, `todo`, `bash`) to explore the codebase
+1. Use read-only tools (`read_file`, `grep`, `find`, `ls`, `todo`, `bash`) to explore the codebase
 2. Understand the user's request thoroughly
 3. When ready, call `submit_plan` with your implementation plan
 
 ## Restrictions
-- You can ONLY use read-only tools: `read_file`, `grep`, `todo`, `bash`, `submit_plan`
+- You can ONLY use read-only tools: `read_file`, `grep`, `find`, `ls`, `todo`, `bash`, `submit_plan`
 - The `bash` tool is restricted to read-only commands only (e.g., `ls`, `cat`, `git log`, `find`, `tree`)
 - Any write operations (`write_file`, `edit`) will be blocked
 - Bash commands that modify files or system state are automatically denied

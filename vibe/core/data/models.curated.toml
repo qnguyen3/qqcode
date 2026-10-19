@@ -1,0 +1,808 @@
+# Built-in model catalog. The source of vibe/core/data/models.generated.json.
+# Edit this file, then run: uv run python scripts/generate_models.py
+#
+# A provider with an upstream catalog (models.dev, OpenRouter, Vercel AI
+# Gateway) takes context window, pricing and reasoning metadata from it. Fields
+# written here override it. An entry with manual = true has no upstream source,
+# so it must state context_window and pricing itself.
+#
+# A [[catalog]] rule builds every active, tool-capable model that models.dev
+# lists for its provider, as a "provider/name" alias. A [[models]] entry with
+# the same provider and name replaces the generated one. exclude drops names.
+
+[[catalog]]
+provider = "xiaomimimo"
+
+[[catalog]]
+provider = "deepseek"
+
+[[catalog]]
+provider = "opencode"
+exclude = ["gpt-5.3-codex-spark", "claude-sonnet-4", "deepseek-v4-flash-vision-exp", "nemotron-3-ultra-free"]  # models.dev lists these, but neither zen/v1 nor zen/go/v1 serves them
+
+[[catalog]]
+provider = "opencode-go"
+exclude = ["gpt-5.3-codex-spark", "gemini-4-argon-contributor"]  # no Go route: 404 on the Google protocol, rejected on chat completions
+
+[[models]]
+provider = "mistral"
+name = "mistral-vibe-cli-latest"
+alias = "devstral-2"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.4
+output_per_million = 2.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "mistral"
+name = "devstral-small-latest"
+alias = "devstral-small"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.1
+output_per_million = 0.3
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "llamacpp"
+name = "devstral"
+alias = "local"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "openrouter"
+name = "openai/gpt-5.2"
+alias = "openrouter/gpt-5.2"
+
+[models.extra_body.reasoning]
+effort = "none"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "openrouter"
+name = "openai/gpt-5.2"
+alias = "openrouter/gpt-5.2:low"
+
+[models.extra_body.reasoning]
+effort = "low"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "openrouter"
+name = "openai/gpt-5.2"
+alias = "openrouter/gpt-5.2:medium"
+
+[models.extra_body.reasoning]
+effort = "medium"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "openrouter"
+name = "openai/gpt-5.2"
+alias = "openrouter/gpt-5.2:high"
+
+[models.extra_body.reasoning]
+effort = "high"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "openrouter"
+name = "openai/gpt-5.2"
+alias = "openrouter/gpt-5.2:xhigh"
+
+[models.extra_body.reasoning]
+effort = "xhigh"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "anthropic"
+name = "claude-sonnet-4-5-20250929"
+alias = "claude-sonnet-4.5"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "anthropic"
+name = "claude-sonnet-4-5-20250929"
+alias = "claude-sonnet-4.5:thinking"
+
+[models.extra_body.thinking]
+type = "enabled"
+budget_tokens = 2000
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "anthropic"
+name = "claude-haiku-4-5-20251001"
+alias = "claude-haiku-4.5"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "anthropic"
+name = "claude-haiku-4-5-20251001"
+alias = "claude-haiku-4.5:thinking"
+
+[models.extra_body.thinking]
+type = "enabled"
+budget_tokens = 2000
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "anthropic"
+name = "claude-opus-4-5-20251101"
+alias = "claude-opus-4.5"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "anthropic"
+name = "claude-opus-4-5-20251101"
+alias = "claude-opus-4.5:thinking"
+
+[models.extra_body.thinking]
+type = "enabled"
+budget_tokens = 2000
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "zai"
+name = "glm-4.6"
+alias = "zai/glm-4.6"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "zai"
+name = "glm-4.5"
+alias = "zai/glm-4.5"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "zai"
+name = "glm-4.5-air"
+alias = "zai/glm-4.5-air"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "qwen"
+name = "qwen3-coder-plus"
+alias = "qwen-coder-plus"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "short"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "qwen"
+name = "qwen3-coder-flash"
+alias = "qwen-coder-flash"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "short"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "xiaomimimo"
+name = "mimo-v2-flash"
+alias = "mimo-v2-flash"
+
+[[models]]
+provider = "openai"
+name = "gpt-5.4"
+alias = "openai/gpt-5.4"
+context_window = 400000  # previously tuned window; upstream reports 1.05M
+
+[[models]]
+provider = "openai"
+name = "gpt-5.4-mini"
+alias = "openai/gpt-5.4-mini"
+
+[[models]]
+provider = "openai"
+name = "gpt-4o"
+alias = "openai/gpt-4o"
+
+[[models]]
+provider = "openai-codex"
+name = "gpt-5.1-codex"
+alias = "openai-codex/gpt-5.1-codex"
+manual = true
+context_window = 400000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = true
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "openai-codex"
+name = "gpt-5.1-codex-mini"
+alias = "openai-codex/gpt-5.1-codex-mini"
+manual = true
+context_window = 400000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+# models.dev lists half of these DeepSeek rates. They are the standard rates
+# pi uses; the cost schema has no time-based discount tiers.
+[[models]]
+provider = "deepseek"
+name = "deepseek-v4-pro"
+alias = "deepseek/deepseek-v4-pro"
+
+[models.pricing]
+input_per_million = 1.32
+output_per_million = 3.96
+cache_read_per_million = 0.044
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "deepseek"
+name = "deepseek-flash"
+alias = "deepseek/deepseek-flash"
+
+[models.pricing]
+input_per_million = 0.3
+output_per_million = 1.2
+cache_read_per_million = 0.006
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "nvidia"
+name = "nvidia/nemotron-3-ultra-550b-a55b"
+alias = "nvidia/nemotron-3-ultra"
+context_window = 128000  # previously tuned window; upstream reports 1M
+
+[[models]]
+provider = "google"
+name = "gemini-2.5-flash"
+alias = "google/gemini-2.5-flash"
+
+[[models]]
+provider = "google"
+name = "gemini-2.5-flash-lite"
+alias = "google/gemini-2.5-flash-lite"
+
+[[models]]
+provider = "google"
+name = "gemini-2.5-pro"
+alias = "google/gemini-2.5-pro"
+
+[[models]]
+provider = "google"
+name = "gemini-3-flash-preview"
+alias = "google/gemini-3-flash"
+
+[[models]]
+provider = "github-copilot"
+name = "gpt-4o"
+alias = "github-copilot/gpt-4o"
+manual = true
+api_style = "openai-responses"
+context_window = 128000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = true
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "github-copilot"
+name = "claude-sonnet-4-5"
+alias = "github-copilot/claude-sonnet-4.5"
+manual = true
+api_style = "anthropic"
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = true
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "groq"
+name = "llama-3.3-70b-versatile"
+alias = "groq/llama-3.3-70b"
+
+[[models]]
+provider = "groq"
+name = "openai/gpt-oss-120b"
+alias = "groq/gpt-oss-120b"
+
+[[models]]
+provider = "cerebras"
+name = "gpt-oss-120b"
+alias = "cerebras/gpt-oss-120b"
+
+[[models]]
+provider = "xai"
+name = "grok-4.7"
+alias = "xai/grok-4.7"
+context_window = 256000  # previously tuned window; upstream reports 500K
+
+[[models]]
+provider = "xai"
+name = "grok-4.6"
+alias = "xai/grok-4.6"
+context_window = 256000  # previously tuned window; upstream reports 500K
+
+[[models]]
+provider = "vercel-ai-gateway"
+name = "anthropic/claude-haiku-4.5"
+alias = "vercel/claude-haiku-4.5"
+
+[[models]]
+provider = "vercel-ai-gateway"
+name = "google/gemini-2.5-flash"
+alias = "vercel/gemini-2.5-flash"
+
+[[models]]
+provider = "zai-coding-cn"
+name = "glm-4.7"
+alias = "zai-cn/glm-4.7"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "huggingface"
+name = "moonshotai/Kimi-K2.5"
+alias = "hf/kimi-k2.5"
+
+[[models]]
+provider = "fireworks"
+name = "accounts/fireworks/models/kimi-k3"
+alias = "fireworks/kimi-k3"
+context_window = 256000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "fireworks"
+name = "accounts/fireworks/models/glm-5p3"
+alias = "fireworks/glm-5.3"
+context_window = 200000  # previously tuned window; upstream reports 1,048,573
+
+[[models]]
+provider = "together"
+name = "moonshotai/Kimi-K3"
+alias = "together/kimi-k3"
+context_window = 256000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "together"
+name = "openai/gpt-oss-120b"
+alias = "together/gpt-oss-120b"
+
+[[models]]
+provider = "baseten"
+name = "zai-org/GLM-5.2"
+alias = "baseten/glm-5.2"
+context_window = 200000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "baseten"
+name = "moonshotai/Kimi-K2.6"
+alias = "baseten/kimi-k2.6"
+
+[[models]]
+provider = "kimi-coding"
+name = "k3"
+alias = "kimi/k3"
+context_window = 256000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "kimi-coding"
+name = "kimi-for-coding"
+alias = "kimi/kimi-for-coding"
+context_window = 256000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "meta"
+name = "muse-spark-1.3"
+alias = "meta/muse-spark-1.3"
+context_window = 128000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "minimax"
+name = "MiniMax-M2.7"
+alias = "minimax/minimax-m2.7"
+
+[[models]]
+provider = "minimax-cn"
+name = "MiniMax-M2.7"
+alias = "minimax-cn/minimax-m2.7"
+
+[[models]]
+provider = "moonshotai"
+name = "kimi-k2.7-code"
+alias = "moonshot/kimi-k2.7-code"
+
+[[models]]
+provider = "moonshotai-cn"
+name = "kimi-k2.7-code"
+alias = "moonshot-cn/kimi-k2.7-code"
+
+[[models]]
+provider = "qwen-token-plan"
+name = "qwen3.7-max"
+alias = "qwen-token-plan/qwen3.7-max"
+context_window = 262144  # previously tuned window; upstream reports 1M
+
+[[models]]
+provider = "qwen-token-plan-cn"
+name = "qwen3.7-max"
+alias = "qwen-token-plan-cn/qwen3.7-max"
+context_window = 262144  # previously tuned window; upstream reports 1M
+
+[[models]]
+provider = "ant-ling"
+name = "Ling-2.6-flash"
+alias = "ant-ling/ling-2.6-flash"
+manual = true
+context_window = 262144
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "ant-ling"
+name = "Ring-2.6-1T"
+alias = "ant-ling/ring-2.6-1t"
+manual = true
+context_window = 262144
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "opencode"
+name = "gpt-5.4"
+alias = "opencode/gpt-5.4"
+context_window = 400000  # previously tuned window; upstream reports 1.05M
+api_style = "openai-responses"
+
+[[models]]
+provider = "opencode"
+name = "claude-sonnet-4-5"
+alias = "opencode/claude-sonnet-4.5"
+context_window = 200000  # OpenCode serves Claude at 200K; upstream reports 1M
+api_style = "anthropic"
+
+[[models]]
+provider = "opencode"
+name = "kimi-k2.6"
+alias = "opencode/kimi-k2.6"
+
+[[models]]
+provider = "opencode"
+name = "grok-build-0.1"
+alias = "opencode/grok-build-0.1"
+
+[[models]]
+provider = "opencode-go"
+name = "gpt-5.6-luna"
+alias = "opencode-go/gpt-5.6-luna"
+context_window = 400000  # previously tuned window; upstream reports 1.05M
+api_style = "openai-responses"
+
+[[models]]
+provider = "opencode-go"
+name = "kimi-k3"
+alias = "opencode-go/kimi-k3"
+context_window = 256000  # previously tuned window; upstream reports 1,048,576
+
+[[models]]
+provider = "opencode-go"
+name = "deepseek-v4.1-flash"
+alias = "opencode-go/deepseek-v4.1-flash"
+context_window = 256000  # previously tuned window; upstream reports 1M
+
+[[models]]
+provider = "radius"
+name = "claude-sonnet-4-5"
+alias = "radius/claude-sonnet-4.5"
+manual = true
+context_window = 200000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = true
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "radius"
+name = "gpt-5.1"
+alias = "radius/gpt-5.1"
+manual = true
+context_window = 400000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = true
+vision = true
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "google-vertex"
+name = "gemini-2.5-pro"
+alias = "vertex/gemini-2.5-pro"
+
+[[models]]
+provider = "google-vertex"
+name = "gemini-2.5-flash"
+alias = "vertex/gemini-2.5-flash"
+
+[[models]]
+provider = "google-vertex"
+name = "gemini-3-flash-preview"
+alias = "vertex/gemini-3-flash"
+
+[[models]]
+provider = "amazon-bedrock"
+name = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+alias = "bedrock/claude-sonnet-4.5"
+
+[models.capabilities]
+prompt_cache = "short"
+
+[[models]]
+provider = "amazon-bedrock"
+name = "amazon.nova-pro-v1:0"
+alias = "bedrock/nova-pro"
+
+[[models]]
+provider = "amazon-bedrock"
+name = "amazon.nova-lite-v1:0"
+alias = "bedrock/nova-lite"
+
+[[models]]
+provider = "cloudflare-workers-ai"
+name = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+alias = "cloudflare/llama-3.3-70b"
+
+[[models]]
+provider = "cloudflare-workers-ai"
+name = "@cf/qwen/qwen2.5-coder-32b-instruct"
+alias = "cloudflare/qwen2.5-coder"
+manual = true
+context_window = 128000
+
+[models.capabilities]
+tools = true
+tool_choice = true
+reasoning = false
+vision = false
+prompt_cache = "none"
+parallel_tool_calls = true
+
+[models.pricing]
+input_per_million = 0.0
+output_per_million = 0.0
+cache_read_per_million = 0.0
+cache_write_per_million = 0.0
+
+[[models]]
+provider = "cloudflare-workers-ai"
+name = "@cf/meta/llama-4-scout-17b-16e-instruct"
+alias = "cloudflare/llama-4-scout"
+
+[[models]]
+provider = "cloudflare-ai-gateway"
+name = "openai/gpt-4o"
+alias = "cloudflare-gateway/gpt-4o"

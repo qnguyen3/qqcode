@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from pydantic import BaseModel, Field
 
@@ -38,6 +38,7 @@ class SkillConfig(BaseToolConfig):
     """Configuration for the skill tool."""
 
     permission: ToolPermission = ToolPermission.ASK
+    timeout: float | None = 120.0
 
 
 class SkillState(BaseToolState):
@@ -63,6 +64,7 @@ class Skill(
         "Activate a skill by name to load domain-specific expertise. "
         "Returns the full skill content with instructions and context."
     )
+    execution_mode: ClassVar[Literal["parallel", "sequential"]] = "sequential"
 
     async def run(self, args: SkillArgs) -> SkillResult:
         """Load and return the content of the specified skill.
@@ -132,10 +134,7 @@ class Skill(
         error = getattr(result, "error", None)
 
         if not success:
-            return ToolResultDisplay(
-                success=False,
-                message=error or "Unknown error",
-            )
+            return ToolResultDisplay(success=False, message=error or "Unknown error")
 
         # Count content lines for summary
         content_lines = len(content.splitlines()) if content else 0

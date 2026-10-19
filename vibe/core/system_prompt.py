@@ -9,9 +9,11 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
-from vibe.core.config import INSTRUCTIONS_FILE, PROJECT_DOC_FILENAMES
+from vibe.core.config import CONFIG_DIR, INSTRUCTIONS_FILE, PROJECT_DOC_FILENAMES
 from vibe.core.llm.format import get_active_tool_classes
 from vibe.core.prompts import UtilityPrompt
+from vibe.core.prompts.context_files import load_context_files, render_context_files
+from vibe.core.prompts.sections import PromptSection, PromptSections
 from vibe.core.utils import is_dangerous_directory, is_windows
 
 if TYPE_CHECKING:
@@ -375,6 +377,143 @@ def _add_commit_signature() -> str:
     )
 
 
+def collect_tool_prompts(tool_manager: ToolManager, config: VibeConfig) -> str:
+    prompts = [
+        prompt
+        for tool_class in get_active_tool_classes(tool_manager, config)
+        if (prompt := tool_class.get_tool_prompt())
+    ]
+    return "\n---\n".join(prompts)
+
+
+def _build_project_context(config: VibeConfig) -> str:
+    is_dangerous, reason = is_dangerous_directory()
+    if is_dangerous:
+        template = UtilityPrompt.DANGEROUS_DIRECTORY.read()
+        return template.format(reason=reason.lower(), abs_path=Path(".").resolve())
+    return ProjectContextProvider(
+        config=config.project_context, root_path=config.effective_workdir
+    ).get_full_context()
+
+
+def _build_project_files(config: VibeConfig) -> str:
+    if config.include_context_files:
+        files = load_context_files(
+            config.effective_workdir,
+            CONFIG_DIR,
+            max_bytes_per_file=config.project_context.max_doc_bytes,
+            max_total_bytes=config.project_context.max_doc_bytes * 2,
+        )
+        return render_context_files(files)
+    return _load_project_doc(
+        config.effective_workdir, config.project_context.max_doc_bytes
+    )
+
+
+def build_additional_contexts(
+    config: VibeConfig, additional_directory_contexts: list[Path] | None
+) -> str:
+    if not additional_directory_contexts:
+        return ""
+
+    parts: list[str] = []
+    for i, dir_path in enumerate(additional_directory_contexts):
+        if not (dir_path.exists() and dir_path.is_dir()):
+            continue
+        try:
+            context = ProjectContextProvider(
+                config=config.project_context, root_path=dir_path
+            ).get_full_context()
+        except Exception as e:
+            context = f"Error loading context: {e}"
+        parts.append(
+            f"\n## Additional Directory Context {i + 1}: {dir_path}\n{context}"
+        )
+    return "\n\n".join(parts)
+
+
+def build_prompt_sections(
+    tool_manager: ToolManager,
+    config: VibeConfig,
+    skill_manager: SkillManager | None = None,
+    mode: str | None = None,
+    additional_directory_contexts: list[Path] | None = None,
+) -> PromptSections:
+    sections = PromptSections()
+    preamble = (
+        config.system_prompt_override
+        if config.system_prompt_override is not None
+        else config.system_prompt
+    )
+    sections.set(PromptSection("preamble", preamble, tagged=False))
+
+    if config.include_commit_signature:
+        sections.set(
+            PromptSection("commit_signature", _add_commit_signature(), tagged=False)
+        )
+
+    if config.include_prompt_detail:
+        if tool_prompts := collect_tool_prompts(tool_manager, config):
+            sections.set(PromptSection("tool_prompts", tool_prompts, tagged=False))
+
+        if skill_manager and (skills := skill_manager.get_skills_prompt_section()):
+            sections.set(PromptSection("skills", skills, tagged=False))
+
+    if config.include_model_info:
+        sections.set(
+            PromptSection(
+                "model_info",
+                f"Your model name is: `{config.active_model}`",
+                tagged=False,
+            )
+        )
+
+    if config.include_prompt_detail:
+        sections.set(
+            PromptSection(
+                "docs_routing", UtilityPrompt.DOCS_ROUTING.read(), tagged=False
+            )
+        )
+
+    if config.include_project_context:
+        sections.set(
+            PromptSection(
+                "project_context", _build_project_context(config), tagged=False
+            )
+        )
+        if project_files := _build_project_files(config):
+            sections.set(PromptSection("project_files", project_files, tagged=False))
+
+    if config.include_prompt_detail:
+        user_instructions = config.instructions.strip() or _load_user_instructions()
+        if user_instructions.strip():
+            sections.set(PromptSection("instructions", user_instructions, tagged=False))
+
+    if mode == "plan":
+        sections.set(
+            PromptSection(
+                "mode", UtilityPrompt.PLAN_MODE.read(), tagged=False, cache_stable=False
+            )
+        )
+
+    if config.include_prompt_detail:
+        sections.set(PromptSection("os_env", _get_os_system_prompt(), tagged=False))
+
+    if additional_context := build_additional_contexts(
+        config, additional_directory_contexts
+    ):
+        sections.set(
+            PromptSection("additional_context", additional_context, tagged=False)
+        )
+
+    if appended := "\n\n".join(
+        block.strip() for block in config.append_system_prompt if block.strip()
+    ):
+        sections.set(PromptSection("append", appended, tagged=False))
+
+    return sections
+
+
 def get_universal_system_prompt(
     tool_manager: ToolManager,
     config: VibeConfig,
@@ -382,68 +521,10 @@ def get_universal_system_prompt(
     mode: str | None = None,
     additional_directory_contexts: list[Path] | None = None,
 ) -> str:
-    sections = [config.system_prompt]
-
-    if config.include_commit_signature:
-        sections.append(_add_commit_signature())
-
-    if config.include_model_info:
-        sections.append(f"Your model name is: `{config.active_model}`")
-
-    # Add plan mode instructions if in plan mode
-    if mode == "plan":
-        sections.append(UtilityPrompt.PLAN_MODE.read())
-
-    if config.include_prompt_detail:
-        sections.append(_get_os_system_prompt())
-        tool_prompts = []
-        active_tools = get_active_tool_classes(tool_manager, config)
-        for tool_class in active_tools:
-            if prompt := tool_class.get_tool_prompt():
-                tool_prompts.append(prompt)
-        if tool_prompts:
-            sections.append("\n---\n".join(tool_prompts))
-
-        # Add available skills section if skills are discovered
-        if skill_manager and skill_manager.has_skills():
-            skills_section = skill_manager.get_skills_prompt_section()
-            if skills_section:
-                sections.append(skills_section)
-
-        user_instructions = config.instructions.strip() or _load_user_instructions()
-        if user_instructions.strip():
-            sections.append(user_instructions)
-
-    if config.include_project_context:
-        is_dangerous, reason = is_dangerous_directory()
-        if is_dangerous:
-            template = UtilityPrompt.DANGEROUS_DIRECTORY.read()
-            context = template.format(
-                reason=reason.lower(), abs_path=Path(".").resolve()
-            )
-        else:
-            context = ProjectContextProvider(
-                config=config.project_context, root_path=config.effective_workdir
-            ).get_full_context()
-
-        sections.append(context)
-
-        project_doc = _load_project_doc(
-            config.effective_workdir, config.project_context.max_doc_bytes
-        )
-        if project_doc.strip():
-            sections.append(project_doc)
-
-    # Add additional directory contexts if provided
-    if additional_directory_contexts:
-        for i, dir_path in enumerate(additional_directory_contexts):
-            if dir_path.exists() and dir_path.is_dir():
-                try:
-                    additional_context = ProjectContextProvider(
-                        config=config.project_context, root_path=dir_path
-                    ).get_full_context()
-                    sections.append(f"\n## Additional Directory Context {i+1}: {dir_path}\n{additional_context}")
-                except Exception as e:
-                    sections.append(f"\n## Additional Directory Context {i+1}: {dir_path}\nError loading context: {e}")
-
-    return "\n\n".join(sections)
+    return build_prompt_sections(
+        tool_manager,
+        config,
+        skill_manager=skill_manager,
+        mode=mode,
+        additional_directory_contexts=additional_directory_contexts,
+    ).render()

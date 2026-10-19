@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 import concurrent.futures
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from enum import Enum, StrEnum, auto
 import functools
 import logging
@@ -174,11 +176,51 @@ def _is_retryable_http_error(e: Exception) -> bool:
     return False
 
 
+MAX_RETRY_AFTER_SECONDS = 60.0
+
+
+def _retry_delay(
+    attempt: int, delay_seconds: float, backoff_factor: float, retry_after: float | None
+) -> float:
+    current_delay = (delay_seconds * (backoff_factor**attempt)) + (0.05 * attempt)
+    if retry_after is None:
+        return current_delay
+    return max(current_delay, retry_after)
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    """Parse a ``Retry-After`` header as seconds or an HTTP date.
+
+    Returns:
+        The requested delay in seconds, or None when the header is absent or
+        malformed.
+    """
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return None
+    raw = exc.response.headers.get("retry-after")
+    if raw is None or not (value := raw.strip()):
+        return None
+
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=UTC)
+    return max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
+
+
 def async_retry[T, **P](
     tries: int = 3,
     delay_seconds: float = 0.5,
     backoff_factor: float = 2.0,
     is_retryable: Callable[[Exception], bool] = _is_retryable_http_error,
+    get_retry_after: Callable[[Exception], float | None] | None = None,
 ) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
     """Args:
         tries: Number of retry attempts
@@ -186,6 +228,8 @@ def async_retry[T, **P](
         backoff_factor: Multiplier for delay on each retry
         is_retryable: Function to determine if an exception should trigger a retry
                      (defaults to checking for retryable HTTP errors from both urllib and httpx)
+        get_retry_after: Optional parser for a server-requested retry delay. When
+                     it returns a delay larger than the 60s cap, retrying stops.
 
     Returns:
         Decorated function with retry logic
@@ -201,8 +245,14 @@ def async_retry[T, **P](
                 except Exception as e:
                     last_exc = e
                     if attempt < tries - 1 and is_retryable(e):
-                        current_delay = (delay_seconds * (backoff_factor**attempt)) + (
-                            0.05 * attempt
+                        retry_after = get_retry_after(e) if get_retry_after else None
+                        if (
+                            retry_after is not None
+                            and retry_after > MAX_RETRY_AFTER_SECONDS
+                        ):
+                            raise
+                        current_delay = _retry_delay(
+                            attempt, delay_seconds, backoff_factor, retry_after
                         )
                         await asyncio.sleep(current_delay)
                         continue
@@ -221,6 +271,7 @@ def async_generator_retry[T, **P](
     delay_seconds: float = 0.5,
     backoff_factor: float = 2.0,
     is_retryable: Callable[[Exception], bool] = _is_retryable_http_error,
+    get_retry_after: Callable[[Exception], float | None] | None = None,
 ) -> Callable[[Callable[P, AsyncGenerator[T]]], Callable[P, AsyncGenerator[T]]]:
     """Retry decorator for async generators.
 
@@ -230,6 +281,8 @@ def async_generator_retry[T, **P](
         backoff_factor: Multiplier for delay on each retry
         is_retryable: Function to determine if an exception should trigger a retry
                      (defaults to checking for retryable HTTP errors from both urllib and httpx)
+        get_retry_after: Optional parser for a server-requested retry delay. When
+                     it returns a delay larger than the 60s cap, retrying stops.
 
     Returns:
         Decorated async generator function with retry logic
@@ -249,8 +302,14 @@ def async_generator_retry[T, **P](
                 except Exception as e:
                     last_exc = e
                     if attempt < tries - 1 and is_retryable(e):
-                        current_delay = (delay_seconds * (backoff_factor**attempt)) + (
-                            0.05 * attempt
+                        retry_after = get_retry_after(e) if get_retry_after else None
+                        if (
+                            retry_after is not None
+                            and retry_after > MAX_RETRY_AFTER_SECONDS
+                        ):
+                            raise
+                        current_delay = _retry_delay(
+                            attempt, delay_seconds, backoff_factor, retry_after
                         )
                         await asyncio.sleep(current_delay)
                         continue

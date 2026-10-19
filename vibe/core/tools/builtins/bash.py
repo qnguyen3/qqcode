@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 import os
 import re
 import signal
@@ -12,9 +13,17 @@ from pydantic import BaseModel, Field
 from vibe.core.tools.base import (
     BaseTool,
     BaseToolConfig,
+    BaseToolResult,
     BaseToolState,
     ToolError,
     ToolPermission,
+)
+from vibe.core.tools.truncate import (
+    BASH_MAX_BYTES,
+    BASH_MAX_LINES,
+    format_notice,
+    spill_to_temp_file,
+    truncate_tail,
 )
 from vibe.core.utils import is_windows
 
@@ -136,6 +145,9 @@ class BashToolConfig(BaseToolConfig):
     default_timeout: int = Field(
         default=30, description="Default timeout for commands in seconds."
     )
+    timeout: float | None = Field(
+        default=120.0, description="Agent-level timeout for the whole tool invocation."
+    )
     allowlist: list[str] = Field(
         default_factory=_get_default_allowlist,
         description="Command prefixes that are automatically allowed",
@@ -153,7 +165,7 @@ class BashToolConfig(BaseToolConfig):
 def _get_plan_mode_allowlist() -> list[str]:
     """Get a restrictive allowlist for bash commands in plan mode (read-only only)."""
     common = ["echo", "find", "git diff", "git log", "git status", "tree", "whoami"]
-    
+
     if is_windows():
         return common + ["dir", "findstr", "more", "type", "ver", "where"]
     else:
@@ -179,51 +191,117 @@ def _get_plan_mode_allowlist() -> list[str]:
 def _get_plan_mode_denylist() -> list[str]:
     """Get a comprehensive denylist for bash commands in plan mode."""
     common = ["gdb", "pdb", "passwd"]
-    
+
     if is_windows():
         return common + [
-            "cmd /k", "powershell -NoExit", "pwsh -NoExit", "notepad",
-            "del", "rd", "md", "move", "copy", "attrib", "icacls"
+            "cmd /k",
+            "powershell -NoExit",
+            "pwsh -NoExit",
+            "notepad",
+            "del",
+            "rd",
+            "md",
+            "move",
+            "copy",
+            "attrib",
+            "icacls",
         ]
     else:
         return common + [
             # Editors
-            "nano", "vim", "vi", "emacs", "code",
+            "nano",
+            "vim",
+            "vi",
+            "emacs",
+            "code",
             # File modification
-            "touch", "mkdir", "rm", "mv", "cp", "chmod", "chown", "chgrp",
+            "touch",
+            "mkdir",
+            "rm",
+            "mv",
+            "cp",
+            "chmod",
+            "chown",
+            "chgrp",
             # System modification
-            "sudo", "su", "doas", "pkexec",
+            "sudo",
+            "su",
+            "doas",
+            "pkexec",
             # Package managers
-            "apt", "apt-get", "yum", "dnf", "pacman", "pip", "npm", "yarn", "cargo",
+            "apt",
+            "apt-get",
+            "yum",
+            "dnf",
+            "pacman",
+            "pip",
+            "npm",
+            "yarn",
+            "cargo",
             # Shell operations
-            "bash -i", "sh -i", "zsh -i", "fish -i", "dash -i",
+            "bash -i",
+            "sh -i",
+            "zsh -i",
+            "fish -i",
+            "dash -i",
             # Process management
-            "kill", "killall", "pkill", "nohup", "screen", "tmux",
+            "kill",
+            "killall",
+            "pkill",
+            "nohup",
+            "screen",
+            "tmux",
             # Network operations
-            "curl", "wget", "nc", "netcat", "ssh", "scp", "rsync",
+            "curl",
+            "wget",
+            "nc",
+            "netcat",
+            "ssh",
+            "scp",
+            "rsync",
             # Git write operations
-            "git commit", "git push", "git add", "git reset", "git checkout", "git branch",
+            "git commit",
+            "git push",
+            "git add",
+            "git reset",
+            "git checkout",
+            "git branch",
             # System info that might be sensitive
-            "env", "printenv", "export", "unset",
+            "env",
+            "printenv",
+            "export",
+            "unset",
         ]
 
 
 def _get_plan_mode_denylist_standalone() -> list[str]:
     """Get a denylist for standalone commands in plan mode."""
     common = ["python", "python3", "ipython"]
-    
+
     if is_windows():
         return common + ["cmd", "powershell", "pwsh", "notepad"]
     else:
         return common + [
-            "bash", "sh", "nohup", "vi", "vim", "emacs", "nano", "su",
-            "sudo", "top", "htop", "less", "more", "man"
+            "bash",
+            "sh",
+            "nohup",
+            "vi",
+            "vim",
+            "emacs",
+            "nano",
+            "su",
+            "sudo",
+            "top",
+            "htop",
+            "less",
+            "more",
+            "man",
         ]
 
 
 class BashPlanModeConfig(BashToolConfig):
     """Configuration for bash tool in plan mode with restrictive read-only settings."""
-    
+
     permission: ToolPermission = ToolPermission.ALWAYS
     allowlist: list[str] = Field(
         default_factory=_get_plan_mode_allowlist,
@@ -246,10 +324,11 @@ class BashArgs(BaseModel):
     )
 
 
-class BashResult(BaseModel):
-    stdout: str
-    stderr: str
-    returncode: int
+class BashResult(BaseToolResult):
+    stdout: str = ""
+    stderr: str = ""
+    returncode: int = 0
+    notice: str | None = None
 
 
 class Bash(BaseTool[BashArgs, BashResult, BashToolConfig, BaseToolState]):
@@ -302,7 +381,15 @@ class Bash(BaseTool[BashArgs, BashResult, BashToolConfig, BaseToolState]):
 
     @final
     def _build_result(
-        self, *, command: str, stdout: str, stderr: str, returncode: int
+        self,
+        *,
+        command: str,
+        stdout: str,
+        stderr: str,
+        returncode: int,
+        truncated: bool = False,
+        full_output_path: str | None = None,
+        notice: str | None = None,
     ) -> BashResult:
         if returncode != 0:
             error_msg = f"Command failed: {command!r}\n"
@@ -313,7 +400,62 @@ class Bash(BaseTool[BashArgs, BashResult, BashToolConfig, BaseToolState]):
                 error_msg += f"\nStdout: {stdout}"
             raise ToolError(error_msg.strip())
 
-        return BashResult(stdout=stdout, stderr=stderr, returncode=returncode)
+        return BashResult(
+            stdout=stdout,
+            stderr=stderr,
+            returncode=returncode,
+            truncated=truncated,
+            full_output_path=full_output_path,
+            notice=notice,
+        )
+
+    @final
+    def _truncate_output(
+        self, stdout_text: str, stderr_text: str, max_bytes: int
+    ) -> BashResult:
+        byte_limit = min(BASH_MAX_BYTES, max_bytes)
+        stdout_truncated = truncate_tail(
+            stdout_text, max_lines=BASH_MAX_LINES, max_bytes=byte_limit
+        )
+        stderr_truncated = truncate_tail(
+            stderr_text, max_lines=BASH_MAX_LINES, max_bytes=byte_limit
+        )
+
+        full_output_path = None
+        if stdout_truncated.truncated or stderr_truncated.truncated:
+            captured: list[str] = []
+            if stdout_truncated.truncated:
+                captured.append(stdout_text)
+            if stderr_truncated.truncated:
+                captured.append(stderr_text)
+            full_output_path = spill_to_temp_file(
+                "".join(
+                    part if part.endswith("\n") else f"{part}\n" for part in captured
+                )
+            )
+            stdout_truncated = replace(
+                stdout_truncated, full_output_path=full_output_path
+            )
+            stderr_truncated = replace(
+                stderr_truncated, full_output_path=full_output_path
+            )
+
+        notices = [
+            notice
+            for notice in (
+                format_notice(stdout_truncated),
+                format_notice(stderr_truncated),
+            )
+            if notice
+        ]
+
+        return BashResult(
+            stdout=stdout_truncated.content,
+            stderr=stderr_truncated.content,
+            truncated=stdout_truncated.truncated or stderr_truncated.truncated,
+            full_output_path=str(full_output_path) if full_output_path else None,
+            notice="\n".join(notices) or None,
+        )
 
     async def run(self, args: BashArgs) -> BashResult:
         timeout = args.timeout or self.config.default_timeout
@@ -345,24 +487,26 @@ class Bash(BaseTool[BashArgs, BashResult, BashToolConfig, BaseToolState]):
                 raise self._build_timeout_error(args.command, timeout)
 
             encoding = _get_subprocess_encoding()
-            stdout = (
-                stdout_bytes.decode(encoding, errors="replace")[:max_bytes]
-                if stdout_bytes
-                else ""
+            stdout_text = (
+                stdout_bytes.decode(encoding, errors="replace") if stdout_bytes else ""
             )
-            stderr = (
-                stderr_bytes.decode(encoding, errors="replace")[:max_bytes]
-                if stderr_bytes
-                else ""
+            stderr_text = (
+                stderr_bytes.decode(encoding, errors="replace") if stderr_bytes else ""
             )
 
+            truncated_result = self._truncate_output(
+                stdout_text, stderr_text, max_bytes
+            )
             returncode = proc.returncode or 0
 
             return self._build_result(
                 command=args.command,
-                stdout=stdout,
-                stderr=stderr,
+                stdout=truncated_result.stdout,
+                stderr=truncated_result.stderr,
                 returncode=returncode,
+                truncated=truncated_result.truncated,
+                full_output_path=truncated_result.full_output_path,
+                notice=truncated_result.notice,
             )
 
         except (ToolError, asyncio.CancelledError):

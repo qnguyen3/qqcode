@@ -10,18 +10,25 @@ from vibe.core.agent import Agent
 from vibe.core.config import (
     Backend,
     ModelConfig,
+    ModelPricing,
     ProviderConfig,
     SessionLoggingConfig,
     VibeConfig,
 )
+from vibe.core.context.tokens import estimate_context_tokens
+from vibe.core.sessions.entries import CompactionEntry
+from vibe.core.sessions.store import JsonlSessionStore
 from vibe.core.tools.base import BaseToolConfig, ToolPermission
 from vibe.core.types import (
     AgentStats,
     AssistantEvent,
     CompactEndEvent,
     CompactStartEvent,
+    ContextUsageEvent,
     FunctionCall,
+    LLMChunk,
     LLMMessage,
+    LLMUsage,
     Role,
     ToolCall,
 )
@@ -45,22 +52,21 @@ def make_config(
             name="mistral-vibe-cli-latest",
             provider="mistral",
             alias="devstral-latest",
-            input_price=input_price,
-            output_price=output_price,
+            pricing=ModelPricing(
+                input_per_million=input_price, output_per_million=output_price
+            ),
         ),
         ModelConfig(
             name="devstral-small-latest",
             provider="mistral",
             alias="devstral-small",
-            input_price=0.1,
-            output_price=0.3,
+            pricing=ModelPricing(input_per_million=0.1, output_per_million=0.3),
         ),
         ModelConfig(
             name="strawberry",
             provider="lechat",
             alias="strawberry",
-            input_price=2.5,
-            output_price=10.0,
+            pricing=ModelPricing(input_per_million=2.5, output_per_million=10.0),
         ),
     ]
     providers = [
@@ -104,9 +110,18 @@ def observer_capture() -> tuple[list[LLMMessage], Callable[[LLMMessage], None]]:
 class TestAgentStatsHelpers:
     def test_update_pricing(self) -> None:
         stats = AgentStats()
-        stats.update_pricing(1.5, 3.0)
+        stats.update_pricing(
+            ModelPricing(
+                input_per_million=1.5,
+                output_per_million=3.0,
+                cache_read_per_million=0.15,
+                cache_write_per_million=1.5,
+            )
+        )
         assert stats.input_price_per_million == 1.5
         assert stats.output_price_per_million == 3.0
+        assert stats.cache_read_price_per_million == 0.15
+        assert stats.cache_write_price_per_million == 1.5
 
     def test_reset_context_state_preserves_cumulative(self) -> None:
         stats = AgentStats(
@@ -150,9 +165,72 @@ class TestAgentStatsHelpers:
         # Cost = 1M * $1/M + 0.5M * $2/M = $1 + $1 = $2
         assert stats.session_cost == 2.0
 
-        stats.update_pricing(2.0, 4.0)
+        stats.update_pricing(
+            ModelPricing(input_per_million=2.0, output_per_million=4.0)
+        )
         # Cost = 1M * $2/M + 0.5M * $4/M = $2 + $2 = $4
         assert stats.session_cost == 4.0
+
+    def test_session_cost_includes_cache_pricing(self) -> None:
+        stats = AgentStats(
+            session_prompt_tokens=1_000_000,
+            session_completion_tokens=1_000,
+            cache_read_tokens=400_000,
+            cache_write_tokens=100_000,
+            input_price_per_million=3.0,
+            output_price_per_million=15.0,
+            cache_read_price_per_million=0.3,
+            cache_write_price_per_million=3.75,
+        )
+        # Billed input 500k*$3/M + 1k*$15/M + 400k*$0.3/M + 100k*$3.75/M
+        assert stats.session_cost == 2.01
+
+    def test_session_cost_rounds_to_six_decimals(self) -> None:
+        stats = AgentStats(
+            session_prompt_tokens=1,
+            cache_read_tokens=0,
+            input_price_per_million=1.23456789,
+        )
+        assert stats.session_cost == 0.000001
+
+    def test_usage_cost_uses_cache_tokens(self) -> None:
+        stats = AgentStats(
+            input_price_per_million=3.0,
+            output_price_per_million=15.0,
+            cache_read_price_per_million=0.3,
+            cache_write_price_per_million=3.75,
+        )
+        usage = LLMUsage(
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000,
+            cache_read_tokens=400_000,
+            cache_write_tokens=100_000,
+        )
+        assert stats.usage_cost(usage) == 2.01
+
+
+class TestCacheTokenTracking:
+    @pytest.mark.asyncio
+    async def test_agent_accumulates_cache_tokens(self) -> None:
+        backend = FakeBackend([
+            LLMChunk(
+                message=LLMMessage(role=Role.assistant, content="ok"),
+                finish_reason="stop",
+                usage=LLMUsage(
+                    prompt_tokens=100,
+                    completion_tokens=10,
+                    cache_read_tokens=60,
+                    cache_write_tokens=5,
+                ),
+            )
+        ])
+        agent = Agent(make_config(), backend=backend)
+
+        async for _ in agent.act("Hello"):
+            pass
+
+        assert agent.stats.cache_read_tokens == 60
+        assert agent.stats.cache_write_tokens == 5
 
 
 class TestReloadPreservesStats:
@@ -440,7 +518,10 @@ class TestCompactStatsHandling:
         async for _ in agent.act("Do something complex"):
             pass
 
-        context_before = agent.stats.context_tokens
+        tools = agent.format_handler.get_available_tools(
+            agent.tool_manager, agent.config
+        )
+        context_before = estimate_context_tokens(agent.messages, tools)
 
         await agent.compact()
 
@@ -476,12 +557,15 @@ class TestCompactStatsHandling:
         assert agent.stats.tool_calls_succeeded == 1
 
     @pytest.mark.asyncio
-    async def test_compact_resets_session_id(self) -> None:
+    async def test_compact_keeps_session_and_records_entry(self, tmp_path) -> None:
         backend = FakeBackend([
             mock_llm_chunk(content="Long response " * 100, finish_reason="stop"),
             mock_llm_chunk(content="<summary>", finish_reason="stop"),
         ])
-        agent = Agent(make_config(disable_logging=False), backend=backend)
+        config = make_config(disable_logging=False)
+        config.session_logging.sessions_dir = str(tmp_path)
+        config.session_logging.fsync = False
+        agent = Agent(config, backend=backend)
 
         original_session_id = agent.session_id
         original_logger_session_id = agent.interaction_logger.session_id
@@ -493,8 +577,14 @@ class TestCompactStatsHandling:
 
         await agent.compact()
 
-        assert agent.session_id != original_session_id
+        assert agent.session_id == original_session_id
         assert agent.session_id == agent.interaction_logger.session_id
+
+        store = JsonlSessionStore(config.session_logging)
+        path = store.find(agent.session_id)
+        assert path is not None
+        view = store.read(path)
+        assert any(isinstance(entry, CompactionEntry) for entry in view.entries)
 
 
 class TestAutoCompactIntegration:
@@ -509,12 +599,12 @@ class TestAutoCompactIntegration:
             mock_llm_chunk(content="<summary>", finish_reason="stop"),
             mock_llm_chunk(content="<final>", finish_reason="stop"),
         ])
-        # Create a model with low context_limit to trigger compaction
+        # Create a model with low context_window to trigger compaction
         test_model = ModelConfig(
             name="test-model",
             provider="mistral",
             alias="test-compact",
-            context_limit=1,
+            context_window=1,
         )
         cfg = VibeConfig(
             session_logging=SessionLoggingConfig(enabled=False),
@@ -526,18 +616,19 @@ class TestAutoCompactIntegration:
 
         events = [ev async for ev in agent.act("Hello")]
 
-        assert len(events) == 3
+        assert len(events) == 4
         assert isinstance(events[0], CompactStartEvent)
         assert isinstance(events[1], CompactEndEvent)
         assert isinstance(events[2], AssistantEvent)
+        assert isinstance(events[3], ContextUsageEvent)
 
         start: CompactStartEvent = events[0]
         end: CompactEndEvent = events[1]
         final: AssistantEvent = events[2]
 
-        assert start.current_context_tokens == 2
+        assert start.current_context_tokens > 0
         assert start.threshold == 1
-        assert end.old_context_tokens == 2
+        assert end.old_context_tokens == start.current_context_tokens
         assert end.new_context_tokens >= 1
         assert final.content == "<final>"
 
@@ -549,9 +640,9 @@ class TestAutoCompactIntegration:
         )
 
 
-class TestClearHistoryFullReset:
+class TestClearHistory:
     @pytest.mark.asyncio
-    async def test_clear_history_fully_resets_stats(self) -> None:
+    async def test_clear_history_keeps_session_totals(self) -> None:
         backend = FakeBackend([
             mock_llm_chunk(content="Response", finish_reason="stop")
         ])
@@ -560,14 +651,19 @@ class TestClearHistoryFullReset:
         async for _ in agent.act("Hello"):
             pass
 
-        assert agent.stats.session_prompt_tokens > 0
-        assert agent.stats.steps > 0
+        prompt_tokens = agent.stats.session_prompt_tokens
+        completion_tokens = agent.stats.session_completion_tokens
+        steps = agent.stats.steps
+        cost = agent.stats.session_cost
+        assert prompt_tokens > 0
+        assert steps > 0
 
         await agent.clear_history()
 
-        assert agent.stats.session_prompt_tokens == 0
-        assert agent.stats.session_completion_tokens == 0
-        assert agent.stats.steps == 0
+        assert agent.stats.session_prompt_tokens == prompt_tokens
+        assert agent.stats.session_completion_tokens == completion_tokens
+        assert agent.stats.steps == steps
+        assert agent.stats.session_cost == cost
 
     @pytest.mark.asyncio
     async def test_clear_history_preserves_pricing(self) -> None:
@@ -603,7 +699,7 @@ class TestClearHistoryFullReset:
         assert agent.messages[0].role == Role.system
 
     @pytest.mark.asyncio
-    async def test_clear_history_resets_session_id(self) -> None:
+    async def test_clear_history_keeps_session_id(self) -> None:
         backend = FakeBackend([
             mock_llm_chunk(content="Response", finish_reason="stop")
         ])
@@ -619,7 +715,7 @@ class TestClearHistoryFullReset:
 
         await agent.clear_history()
 
-        assert agent.session_id != original_session_id
+        assert agent.session_id == original_session_id
         assert agent.session_id == agent.interaction_logger.session_id
 
 

@@ -156,8 +156,9 @@ and expects OpenAI-like response/streaming shapes.
 
 Add a new **adapter** for the generic backend:
 
-- File: `core/llm/backend/generic.py`
-- Mechanism: `@register_adapter(BACKEND_ADAPTERS, "<api_style_name>")`
+- File: `core/llm/backend/adapters/<name>.py`
+- Mechanism: `@register_adapter("<api_style_name>")`
+- Adapter modules in that package are auto-discovered, so no other file needs to change
 
 An adapter controls:
 

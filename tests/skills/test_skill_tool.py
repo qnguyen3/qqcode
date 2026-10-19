@@ -17,8 +17,10 @@ from vibe.core.tools.builtins.skill import (
 
 
 @pytest.fixture
-def mock_config(tmp_path: Path) -> MagicMock:
-    """Create a mock VibeConfig with a temporary workdir."""
+def mock_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Create a mock VibeConfig with a temporary workdir and isolated home."""
+    monkeypatch.setenv("QQCODE_HOME", str(tmp_path / ".qqcode-home"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
     config = MagicMock()
     config.effective_workdir = tmp_path
     return config
@@ -136,10 +138,7 @@ class TestSkillToolDisplay:
 
         args = SkillArgs(name="frontend-design")
         event = ToolCallEvent(
-            tool_name="skill",
-            tool_class=Skill,
-            args=args,
-            tool_call_id="test-id",
+            tool_name="skill", tool_class=Skill, args=args, tool_call_id="test-id"
         )
 
         display = Skill.get_call_display(event)
@@ -157,10 +156,7 @@ class TestSkillToolDisplay:
             success=True,
         )
         event = ToolResultEvent(
-            tool_name="skill",
-            tool_class=Skill,
-            result=result,
-            tool_call_id="test-id",
+            tool_name="skill", tool_class=Skill, result=result, tool_call_id="test-id"
         )
 
         display = Skill.get_result_display(event)

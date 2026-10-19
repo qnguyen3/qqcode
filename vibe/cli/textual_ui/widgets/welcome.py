@@ -94,9 +94,7 @@ class WelcomeBanner(Static):
         self._initialize_static_line_suffixes()
 
     def _initialize_static_line_suffixes(self) -> None:
-        self._static_line1_suffix = (
-            f"{self.LOGO_TEXT_GAP}[b]QQcode v{__version__}[/]"
-        )
+        self._static_line1_suffix = f"{self.LOGO_TEXT_GAP}[b]QQcode v{__version__}[/]"
         self._static_line2_suffix = (
             f"{self.LOGO_TEXT_GAP}[dim]{self.config.active_model}[/]"
         )
@@ -108,7 +106,9 @@ class WelcomeBanner(Static):
             f"{self.LOGO_TEXT_GAP}[dim]{self.config.effective_workdir}[/]"
         )
         block = (self.SPACE * 6) + self.LOGO_TEXT_GAP
-        self._static_line7 = f"{block}[dim]Type[/] [#ff0090]/help[/] [dim]for more information[/]"
+        self._static_line7 = (
+            f"{block}[dim]Type[/] [#ff0090]/help[/] [dim]for more information[/]"
+        )
 
     @property
     def skeleton_color(self) -> str:

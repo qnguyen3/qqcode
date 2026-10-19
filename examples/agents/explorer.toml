@@ -1,0 +1,9 @@
+# Exploration subagent: read-only tools plus bash for quick system checks.
+# Install as ~/.qqcode/agents/explorer.toml and call task(agent="explorer").
+system_prompt_id = "cli"
+
+enabled_tools = ["read_file", "grep", "find", "ls", "bash"]
+
+# Explicitly asked for write-capable tools? They still run auto-approved only
+# inside the parent workdir path allowlist, but prefer read-only toolsets.
+disabled_tools = ["task", "skill", "write_file", "edit"]

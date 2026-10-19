@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import json
 import sys
 from typing import Any, TextIO
 import uuid
 
+from vibe.core.events import (
+    EVENT_SCHEMA_VERSION as EVENT_SCHEMA_VERSION,
+    AgentEventTranslator,
+    EventBus,
+    SDKEvent,
+)
 from vibe.core.types import (
     AssistantEvent,
     BaseEvent,
@@ -94,7 +100,9 @@ class VScodeJsonFormatter(OutputFormatter):
     - error: Error events
     """
 
-    def __init__(self, stream: TextIO = sys.stdout, session_id: str | None = None) -> None:
+    def __init__(
+        self, stream: TextIO = sys.stdout, session_id: str | None = None
+    ) -> None:
         super().__init__(stream)
         self.session_id = session_id or str(uuid.uuid4())[:8]
         self.thread_id = self.session_id  # Keep thread_id for backward compatibility
@@ -105,11 +113,7 @@ class VScodeJsonFormatter(OutputFormatter):
 
     def _emit_event(self, event_type: StreamEventType, data: dict[str, Any]) -> None:
         """Emit a single JSON event to stdout."""
-        event = {
-            "type": event_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            **data,
-        }
+        event = {"type": event_type, "timestamp": datetime.now(UTC).isoformat(), **data}
         json.dump(event, self.stream)
         self.stream.write("\n")
         self.stream.flush()
@@ -117,10 +121,10 @@ class VScodeJsonFormatter(OutputFormatter):
     def _ensure_thread_started(self) -> None:
         """Emit thread.started event if not already emitted."""
         if not self.thread_started:
-            self._emit_event(StreamEventType.THREAD_STARTED, {
-                "thread_id": self.thread_id,
-                "session_id": self.session_id
-            })
+            self._emit_event(
+                StreamEventType.THREAD_STARTED,
+                {"thread_id": self.thread_id, "session_id": self.session_id},
+            )
             self.thread_started = True
 
     def _generate_item_id(self) -> str:
@@ -143,7 +147,9 @@ class VScodeJsonFormatter(OutputFormatter):
 
             # Emit thinking/reasoning content if present
             if event.reasoning_content:
-                reasoning_delta = event.reasoning_content[len(self.accumulated_thinking) :]
+                reasoning_delta = event.reasoning_content[
+                    len(self.accumulated_thinking) :
+                ]
                 if reasoning_delta:
                     self.accumulated_thinking = event.reasoning_content
                     self._emit_event(
@@ -227,18 +233,68 @@ class VScodeJsonFormatter(OutputFormatter):
         return None
 
 
+class EventJsonlFormatter(OutputFormatter):
+    """Versioned JSONL event stream documented in ``docs/cli-events.md``.
+
+    Every line carries ``type``, ``schema`` and ``timestamp`` fields so clients
+    can detect and adapt to schema changes. Unlike the VSCode formatter the
+    payloads are stable, documented and free of tool-class specific data.
+    """
+
+    def __init__(
+        self,
+        stream: TextIO = sys.stdout,
+        session_id: str | None = None,
+        bus: EventBus | None = None,
+    ) -> None:
+        super().__init__(stream)
+        self.session_id = session_id or str(uuid.uuid4())
+        self.bus = bus or EventBus()
+        self._translator = AgentEventTranslator(self.bus, self.session_id)
+        self._unsubscribe = self.bus.subscribe(self._write_sdk_event)
+        self._translator.start_session()
+
+    def _write_sdk_event(self, event: SDKEvent) -> None:
+        json.dump(event.to_wire_dict(), self.stream)
+        self.stream.write("\n")
+        self.stream.flush()
+
+    def _emit(self, event_type: StreamEventType, data: dict[str, Any]) -> None:
+        self._translator.emit_raw(event_type, data)
+
+    def _emit_event(self, event_type: StreamEventType, data: dict[str, Any]) -> None:
+        """Alias used by the shared stdin approval callbacks."""
+        self._translator.emit_raw(event_type, data)
+
+    def emit_error(self, message: str) -> None:
+        """Emit a top-level ``error`` event."""
+        self._translator.emit_error(message)
+
+    def on_message_added(self, message: LLMMessage) -> None:
+        self._messages.append(message)
+
+    def on_event(self, event: BaseEvent) -> None:
+        self._translator.on_event(event)
+
+    def finalize(self) -> str | None:
+        return None
+
+
 def create_formatter(
-    format_type: OutputFormat, stream: TextIO = sys.stdout, session_id: str | None = None
+    format_type: OutputFormat,
+    stream: TextIO = sys.stdout,
+    session_id: str | None = None,
 ) -> OutputFormatter:
     formatters = {
         OutputFormat.TEXT: TextOutputFormatter,
         OutputFormat.JSON: JsonOutputFormatter,  # Original: all messages as JSON at end
         OutputFormat.STREAMING: StreamingJsonOutputFormatter,  # Original: each message as JSON
         OutputFormat.VSCODE: VScodeJsonFormatter,  # New: structured events for VSCode extension
+        OutputFormat.EVENTS: EventJsonlFormatter,  # Versioned JSONL event stream
     }
 
     formatter_class = formatters.get(format_type, TextOutputFormatter)
-    # VScodeJsonFormatter supports session_id parameter
-    if format_type == OutputFormat.VSCODE and session_id:
+    # VScodeJsonFormatter and EventJsonlFormatter support session_id parameter
+    if format_type in {OutputFormat.VSCODE, OutputFormat.EVENTS} and session_id:
         return formatter_class(stream, session_id=session_id)
     return formatter_class(stream)

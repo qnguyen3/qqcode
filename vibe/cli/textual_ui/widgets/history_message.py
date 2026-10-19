@@ -53,9 +53,7 @@ class HistoricalToolCall(Static):
 class HistoricalToolResult(Static):
     """Display a tool result from history."""
 
-    def __init__(
-        self, tool_name: str, content: str, is_error: bool = False
-    ) -> None:
+    def __init__(self, tool_name: str, content: str, is_error: bool = False) -> None:
         super().__init__()
         self.tool_name = tool_name
         self.content = content

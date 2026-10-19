@@ -144,7 +144,11 @@ async def get_acp_agent_process(
         env={
             **current_env,
             **(mock_env or {}),
-            **({"MISTRAL_API_KEY": "mock", "QQCODE_HOME": test_config_home} if mock else {}),
+            **(
+                {"MISTRAL_API_KEY": "mock", "QQCODE_HOME": test_config_home}
+                if mock
+                else {}
+            ),
         },
     )
 

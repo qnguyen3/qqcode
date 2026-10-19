@@ -13,6 +13,8 @@ from vibe.core.types import (
     BaseEvent,
     CompactEndEvent,
     CompactStartEvent,
+    ContextUsageEvent,
+    SubagentEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
@@ -42,26 +44,25 @@ class EventHandler:
         loading_active: bool = False,
         loading_widget: LoadingWidget | None = None,
     ) -> ToolCallMessage | None:
+        tool_call: ToolCallMessage | None = None
         match event:
             case ToolCallEvent():
-                return await self._handle_tool_call(event, loading_widget)
+                tool_call = await self._handle_tool_call(event, loading_widget)
             case ToolResultEvent():
                 sanitized_event = self._sanitize_event(event)
-
                 await self._handle_tool_result(sanitized_event)
-                return None
             case AssistantEvent():
                 await self._handle_assistant_message(event)
-                return None
             case CompactStartEvent():
                 await self._handle_compact_start()
-                return None
             case CompactEndEvent():
                 await self._handle_compact_end(event)
-                return None
+            case SubagentEvent():
+                self._handle_subagent_event(event, loading_widget)
             case _:
-                await self._handle_unknown_event(event)
-                return None
+                if not isinstance(event, ContextUsageEvent):
+                    await self._handle_unknown_event(event)
+        return tool_call
 
     def _sanitize_event(self, event: ToolResultEvent) -> ToolResultEvent:
         if isinstance(event, ToolResultEvent):
@@ -116,6 +117,21 @@ class EventHandler:
         compact_msg = CompactMessage()
         self.current_compact = compact_msg
         await self.mount_callback(compact_msg)
+
+    def _handle_subagent_event(
+        self, event: SubagentEvent, loading_widget: LoadingWidget | None
+    ) -> None:
+        if loading_widget is None:
+            return
+        match event.status:
+            case "running":
+                loading_widget.set_status(
+                    f"Subagent {event.description} ({event.turns} turns)"
+                )
+            case _:
+                loading_widget.set_status(
+                    f"Subagent {event.description} {event.status}"
+                )
 
     async def _handle_compact_end(self, event: CompactEndEvent) -> None:
         if self.current_compact:

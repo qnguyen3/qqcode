@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 from collections.abc import Callable
 from dataclasses import dataclass
-import hashlib
-import secrets
-import uuid
+from typing import ClassVar
 from urllib.parse import urlencode
+import uuid
 
 import httpx
 
-from vibe.core.oauth.token import QwenOAuthToken
+from vibe.core.oauth.base import AuthInteraction, DeviceCodeInfo
+from vibe.core.oauth.pkce import generate_pkce
+from vibe.core.oauth.registry import register_flow
+from vibe.core.oauth.token import OAuthToken, QwenOAuthToken
 
 # Qwen OAuth constants
 CLIENT_ID = "f0304373b74a44d2b584a3fb70ca9e56"
@@ -28,24 +29,13 @@ HTTP_TOO_MANY_REQUESTS = 429
 USER_AGENT = "qwen-code/1.0"
 
 
-def _base64_url_encode(data: bytes) -> str:
-    """Encode bytes to URL-safe base64 without padding."""
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
 def get_pkce_challenge() -> tuple[str, str]:
     """Generate PKCE verifier and challenge.
 
     Returns:
         Tuple of (verifier, challenge) strings.
     """
-    verifier_bytes = secrets.token_bytes(32)
-    verifier = _base64_url_encode(verifier_bytes)
-
-    challenge_hash = hashlib.sha256(verifier.encode("ascii")).digest()
-    challenge = _base64_url_encode(challenge_hash)
-
-    return verifier, challenge
+    return generate_pkce()
 
 
 @dataclass
@@ -281,7 +271,7 @@ async def poll_for_token(
     raise AuthorizationTimeout("Authorization timed out")
 
 
-async def refresh_token(refresh_token_str: str) -> QwenOAuthToken:
+async def _refresh_access_token(refresh_token_str: str) -> QwenOAuthToken:
     """Refresh an expired access token.
 
     Args:
@@ -331,3 +321,39 @@ async def refresh_token(refresh_token_str: str) -> QwenOAuthToken:
         expires_in=token_data.get("expires_in", 3600),
         resource_url=token_data.get("resource_url"),
     )
+
+
+async def refresh_token(refresh_token_str: str) -> QwenOAuthToken:
+    """Refresh an expired access token (module-level compatibility wrapper)."""
+    return await _refresh_access_token(refresh_token_str)
+
+
+class QwenOAuthFlow:
+    """Qwen device-code OAuth flow."""
+
+    name: ClassVar[str] = "qwen"
+    is_subscription: ClassVar[bool] = True
+    login_label: ClassVar[str] = "Sign in with Qwen"
+
+    async def login(self, interaction: AuthInteraction) -> QwenOAuthToken:
+        verifier, challenge = get_pkce_challenge()
+        device = await request_device_code(challenge)
+        await interaction.show_device_code(
+            DeviceCodeInfo(
+                user_code=device.user_code,
+                verification_uri=device.verification_uri_complete,
+                expires_in_seconds=device.expires_in,
+            )
+        )
+        return await poll_for_token(
+            device_code=device.device_code,
+            verifier=verifier,
+            expires_in=device.expires_in,
+            cancel_check=lambda: interaction.cancelled,
+        )
+
+    async def refresh(self, token: OAuthToken) -> QwenOAuthToken:
+        return await _refresh_access_token(token.refresh_token)
+
+
+register_flow(QwenOAuthFlow())

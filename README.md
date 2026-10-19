@@ -153,15 +153,32 @@ Example skill structure:
 
 Skills can provide specialized workflows, context, and best practices for specific domains like frontend development, data analysis, or testing.
 
+Skills are also discovered from `.agents/skills/` (searching up from the current directory) and `~/.agents/skills/`. When the same skill name exists in multiple locations, `.qqcode/skills/` wins.
+
+Add `disable-model-invocation: true` to a skill's frontmatter to hide it from the model-facing skill list; hidden skills can still be invoked explicitly with `/skill:<name> [args]`.
+
 ## Configuration
 
 QQcode is configured via a `config.toml` file. It looks for this file first in `./.qqcode/config.toml` and then falls back to `~/.qqcode/config.toml`.
+
+### Keybindings
+
+Change the interactive shortcuts without editing code. Overrides live in `~/.qqcode/keybindings.toml` (or `.qqcode/keybindings.toml` for a trusted project) and merge with the built-in defaults:
+
+```toml
+[bindings]
+toggle_tool = "f4"
+cycle_model = ["ctrl+p", "f3"]
+```
+
+Run `/hotkeys` to list every action with its current keys; `/hotkeys edit` creates the file and prints its path. Conflicts and invalid keys warn instead of breaking the TUI, and edits reload while QQcode is running. See [docs/keybindings.md](docs/keybindings.md).
 
 ### Supported Providers
 
 QQcode supports multiple AI providers:
 
-- **Anthropic Claude Max subscription**: Access Claude models with your Claude.ai subscription (run `qqcode --login anthropic`)
+- **Anthropic Claude Max subscription**: Access Claude models with your Claude.ai subscription (run `qqcode login anthropic`, or `qqcode --login anthropic`)
+- **Qwen subscription**: Sign in with your Qwen account (run `qqcode login qwen`)
 - **OpenRouter**: Access multiple AI models through a single API
 - **Mistral AI**: Use Mistral's AI models directly
 
@@ -169,15 +186,27 @@ QQcode supports multiple AI providers:
 
 QQcode supports multiple ways to configure your API keys:
 
-1. **Interactive Setup (Recommended for first-time users)**: When you run QQcode for the first time or if your API key is missing, QQcode will prompt you to enter it. The key will be securely saved to `~/.qqcode/.env` for future sessions.
+1. **`qqcode login` (Recommended)**: An interactive command that lists every configured provider and how it authenticates. Subscription providers (Anthropic Claude Max, Qwen) run their sign-in flow; API-key providers ask for the key and store it securely:
 
-2. **Environment Variables**: Set your API key as an environment variable:
+   ```bash
+   qqcode login              # pick a method, then a provider
+   qqcode login openrouter   # go straight to one provider
+   qqcode logout             # remove a stored credential
+   ```
+
+   Inside the TUI the same flows are available as `/login [provider]` and `/logout`: a searchable selector lists each provider with its auth method (`subscription`, `account` or `API key`) and whether it is already configured, then asks for the API key or starts the sign-in flow.
+
+   Keys are saved to `~/.qqcode/.env`; run `qqcode login` with no argument at any time to see what is already configured.
+
+2. **Interactive Setup (first run)**: When you run QQcode for the first time or if your API key is missing, QQcode will prompt you to enter it. The key will be securely saved to `~/.qqcode/.env` for future sessions.
+
+3. **Environment Variables**: Set your API key as an environment variable:
 
    ```bash
    export OPENROUTER_API_KEY="your_openrouter_api_key"
    ```
 
-3. **`.env` File**: Create a `.env` file in `~/.qqcode/` and add your API keys:
+4. **`.env` File**: Create a `.env` file in `~/.qqcode/` and add your API keys:
 
    ```bash
    OPENROUTER_API_KEY=your_openrouter_api_key
@@ -185,7 +214,7 @@ QQcode supports multiple ways to configure your API keys:
 
    QQcode automatically loads API keys from `~/.qqcode/.env` on startup. Environment variables take precedence over the `.env` file if both are set.
 
-**Note**: The `.env` file is specifically for API keys and other provider credentials. General QQcode configuration should be done in `config.toml`.
+**Note**: The `.env` file is specifically for API keys and other provider credentials. General QQcode configuration should be done in `config.toml`. Custom providers added to `config.toml` appear in `qqcode login` automatically as long as they define an `api_key_env_var`.
 
 ### Custom System Prompts
 
@@ -199,6 +228,32 @@ system_prompt_id = "my_custom_prompt"
 ```
 
 This will load the prompt from `~/.qqcode/prompts/my_custom_prompt.md`.
+
+### Prompt Templates
+
+Prompt templates turn markdown files into slash commands with arguments. Place
+them in `.qqcode/prompts/commands/` (project) or `~/.qqcode/prompts/commands/`
+(global); each `*.md` file registers `/<name>`.
+
+```markdown
+---
+description: Create a pull request
+---
+
+Open a pull request for `$1` targeting `${2:-main}`.
+```
+
+Then run `/pr "feature branch"` to expand the placeholders and send the result
+as a user message. See [docs/prompt-templates.md](docs/prompt-templates.md) for
+the full placeholder reference.
+
+### Images
+
+`read_file` understands image files (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`,
+`.bmp`). Vision-capable models receive the image itself; text-only models get a
+placeholder with the path and size instead. Install the optional Pillow extra
+(`pip install "qqcode[images]"`) to resize images over 5 MiB automatically. See
+[docs/images.md](docs/images.md).
 
 ### Custom Agent Configurations
 
@@ -275,6 +330,38 @@ Key fields:
 - `api_key_env`: Environment variable containing the API key
 - `command`: Command to run for stdio transport
 - `args`: Additional arguments for stdio transport
+- `enabled`: Connect the server at startup (default `true`)
+- `timeout`: Per-operation timeout in seconds (default `60`)
+- `tool_exposure`: `direct` (default), `deferred` (hidden behind `mcp_search`), or `hidden`
+- `env`: Extra environment variables for stdio servers
+- `oauth`: OAuth 2.1 configuration for protected HTTP servers
+
+```toml
+# Protected HTTP server with OAuth
+[[mcp_servers]]
+name = "protected"
+transport = "streamable-http"
+url = "https://mcp.example.com/mcp"
+
+[mcp_servers.oauth]
+client_id = "my-client"      # omit to use dynamic client registration
+scopes = ["read"]
+```
+
+Manage servers from the CLI instead of editing TOML by hand:
+
+```bash
+qqcode mcp list [--json]
+qqcode mcp add fetch_server -- uvx mcp-server-fetch
+qqcode mcp add protected --url https://mcp.example.com/mcp --oauth
+qqcode mcp remove protected
+qqcode mcp login protected    # browser OAuth flow
+qqcode mcp logout protected
+```
+
+Resource tools (`mcp__<server>__list_resources`,
+`mcp__<server>__list_resource_templates`, `mcp__<server>__read_resource`) expose
+server resources. See [docs/mcp.md](docs/mcp.md) for the full guide.
 
 MCP tools are named using the pattern `{server_name}_{tool_name}` and can be configured with permissions like built-in tools:
 

@@ -70,10 +70,7 @@ TOOL_CONVERSATION_PARAMS: list[tuple[Url, JsonResponse, ResultData]] = [
                     "finish_reason": "tool_calls",
                 }
             ],
-            "usage": {
-                "prompt_tokens": 100,
-                "completion_tokens": 80,
-            },
+            "usage": {"prompt_tokens": 100, "completion_tokens": 80},
         },
         {
             "message": "",
@@ -173,11 +170,7 @@ STREAMED_TOOL_CONVERSATION_PARAMS: list[tuple[Url, list[Chunk], list[ResultData]
                 "message": "",
                 "finish_reason": None,
                 "tool_calls": [
-                    {
-                        "name": None,
-                        "arguments": '{"location": "Beijing"}',
-                        "index": 0,
-                    }
+                    {"name": None, "arguments": '{"location": "Beijing"}', "index": 0}
                 ],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0},
             },

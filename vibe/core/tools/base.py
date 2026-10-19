@@ -2,14 +2,20 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import StrEnum, auto
+import fnmatch
 import functools
 import inspect
 from pathlib import Path
 import re
 import sys
-from typing import Any, ClassVar, cast, get_args, get_type_hints
+from typing import Any, ClassVar, Literal, Protocol, cast, get_args, get_type_hints
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from vibe.core.tools.file_mutation_queue import (
+    FileMutationQueue,
+    get_default_file_mutation_queue,
+)
 
 ARGS_COUNT = 4
 
@@ -51,6 +57,28 @@ class ToolPermission(StrEnum):
             )
 
 
+class ToolResultFormatter(Protocol):
+    def format_for_model(self) -> str: ...
+
+    def ui_summary(self) -> str: ...
+
+
+class BaseToolResult(BaseModel):
+    """Optional base for structured tool results.
+
+    Older tool result models do not need to inherit from this class; the Agent
+    falls back to generic ``key: value`` formatting when it is absent.
+    """
+
+    truncated: bool = False
+    full_output_path: str | None = None
+
+    def format_for_model(self) -> str:
+        return "\n".join(
+            f"{k}: {v}" for k, v in self.model_dump(exclude_none=True).items()
+        )
+
+
 class BaseToolConfig(BaseModel):
     """Configuration for a tool.
 
@@ -59,6 +87,9 @@ class BaseToolConfig(BaseModel):
         workdir: The working directory for the tool. If None, the current working directory is used.
         allowlist: Patterns that automatically allow tool execution.
         denylist: Patterns that automatically deny tool execution.
+        path_allowlist: Absolute-path glob patterns that auto-allow file access.
+        path_denylist: Absolute-path glob patterns that always deny file access.
+        timeout: Per-invocation timeout in seconds. None (or <= 0) disables it.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -67,6 +98,20 @@ class BaseToolConfig(BaseModel):
     workdir: Path | None = Field(default=None, exclude=True)
     allowlist: list[str] = Field(default_factory=list)
     denylist: list[str] = Field(default_factory=list)
+    path_allowlist: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Glob patterns matched against the resolved absolute path. When "
+            "non-empty, file paths outside the list are denied."
+        ),
+    )
+    path_denylist: list[str] = Field(
+        default_factory=list,
+        description="Glob patterns matched against the resolved absolute path; always denied.",
+    )
+    timeout: float | None = Field(
+        default=None, description="Per-invocation timeout in seconds."
+    )
 
     @field_validator("workdir", mode="before")
     @classmethod
@@ -84,10 +129,42 @@ class BaseToolConfig(BaseModel):
         return self.workdir if self.workdir is not None else Path.cwd()
 
 
+def resolve_tool_path(path: str | Path, workdir: Path) -> Path:
+    """Resolve ``path`` against ``workdir`` without requiring it to exist."""
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = workdir / candidate
+    return candidate.resolve()
+
+
+def check_path_patterns(
+    file_path: Path, *, allowlist: list[str], denylist: list[str]
+) -> ToolPermission | None:
+    """Match a resolved path against path allow/deny globs.
+
+    Returns:
+        ``NEVER`` when the path matches a denylist pattern or falls outside a
+        non-empty allowlist, ``ALWAYS`` on an allowlist match, else ``None``.
+    """
+    file_str = str(file_path)
+    if any(fnmatch.fnmatch(file_str, pattern) for pattern in denylist):
+        return ToolPermission.NEVER
+    if not allowlist:
+        return None
+    if any(fnmatch.fnmatch(file_str, pattern) for pattern in allowlist):
+        return ToolPermission.ALWAYS
+    return ToolPermission.NEVER
+
+
 class BaseToolState(BaseModel):
     model_config = ConfigDict(
         extra="forbid", validate_default=True, arbitrary_types_allowed=True
     )
+
+    file_mutation_queue: FileMutationQueue | None = Field(default=None, exclude=True)
+
+
+ToolExposure = Literal["direct", "model_only", "deferred", "hidden"]
 
 
 class BaseTool[
@@ -103,10 +180,16 @@ class BaseTool[
     )
 
     prompt_path: ClassVar[Path] | None = None
+    execution_mode: ClassVar[Literal["parallel", "sequential"]] = "parallel"
+    exposure: ClassVar[ToolExposure] = "direct"
+    scriptable: ClassVar[bool] = False
 
     def __init__(self, config: ToolConfig, state: ToolState) -> None:
         self.config = config
         self.state = state
+
+    def get_file_mutation_queue(self) -> FileMutationQueue:
+        return self.state.file_mutation_queue or get_default_file_mutation_queue()
 
     @abstractmethod
     async def run(self, args: ToolArgs) -> ToolResult:
@@ -279,5 +362,18 @@ class BaseTool[
             None if no match (proceed with normal permission check)
 
         Base implementation returns None. Override in subclasses for specific logic.
+        """
+        return None
+
+    def check_path_restrictions(self, args: ToolArgs) -> ToolPermission | None:
+        """Check file paths against ``path_allowlist``/``path_denylist``.
+
+        Unlike :meth:`check_allowlist_denylist`, this is enforced in every
+        agent mode (including auto-approve) because a path denylist is a hard
+        boundary. Base implementation returns None; file tools override it.
+
+        Returns:
+            ToolPermission.NEVER when the path is denied, ALWAYS when an
+            allowlist matches, None when unrestricted.
         """
         return None

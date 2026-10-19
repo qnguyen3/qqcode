@@ -1,0 +1,51 @@
+"""Public event contract for the Embedding SDK (shared with ``--output events``)."""
+
+from __future__ import annotations
+
+from vibe.core.events import (
+    EVENT_SCHEMA_VERSION,
+    SDK_EVENT_ADAPTER,
+    SDK_EVENT_TYPES,
+    AgentEventTranslator,
+    ErrorStreamEvent,
+    EventBus,
+    MessageDeltaEvent,
+    PlanApprovalRequiredEvent,
+    SDKEvent,
+    SDKEventBase,
+    SessionCompactedEvent,
+    SessionStartedEvent,
+    ThinkingUpdatedEvent,
+    ToolApprovalRequiredEvent,
+    ToolCallStreamEvent,
+    ToolResultStreamEvent,
+    TurnCompletedEvent,
+    TurnStartedEvent,
+    TurnUsage,
+    parse_sdk_event,
+    sdk_event_json_schema,
+)
+
+__all__ = [
+    "EVENT_SCHEMA_VERSION",
+    "SDK_EVENT_ADAPTER",
+    "SDK_EVENT_TYPES",
+    "AgentEventTranslator",
+    "ErrorStreamEvent",
+    "EventBus",
+    "MessageDeltaEvent",
+    "PlanApprovalRequiredEvent",
+    "SDKEvent",
+    "SDKEventBase",
+    "SessionCompactedEvent",
+    "SessionStartedEvent",
+    "ThinkingUpdatedEvent",
+    "ToolApprovalRequiredEvent",
+    "ToolCallStreamEvent",
+    "ToolResultStreamEvent",
+    "TurnCompletedEvent",
+    "TurnStartedEvent",
+    "TurnUsage",
+    "parse_sdk_event",
+    "sdk_event_json_schema",
+]

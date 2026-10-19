@@ -4,12 +4,7 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field
 
-from vibe.core.tools.base import (
-    BaseTool,
-    BaseToolConfig,
-    BaseToolState,
-    ToolPermission,
-)
+from vibe.core.tools.base import BaseTool, BaseToolConfig, BaseToolState, ToolPermission
 
 # ============================================================================
 # SubmitPlan Tool
@@ -36,6 +31,7 @@ class SubmitPlanConfig(BaseToolConfig):
     """Configuration for submit_plan tool."""
 
     permission: ToolPermission = ToolPermission.ALWAYS
+    timeout: float | None = 120.0
 
 
 class SubmitPlan(
@@ -48,13 +44,13 @@ class SubmitPlan(
         "The plan should be in Markdown format with clear steps. "
         "The user will review and choose to approve or request revisions."
     )
+    execution_mode: ClassVar[Literal["parallel", "sequential"]] = "sequential"
 
     async def run(self, args: SubmitPlanArgs) -> SubmitPlanResult:
         # The actual approval happens via callback in the agent
         # This just returns a placeholder result that will be mutated
         return SubmitPlanResult(
-            success=True,
-            message="Plan submitted. Awaiting user approval.",
+            success=True, message="Plan submitted. Awaiting user approval."
         )
 
 
@@ -81,6 +77,7 @@ class ExitPlanModeConfig(BaseToolConfig):
     """Configuration for exit_plan_mode tool."""
 
     permission: ToolPermission = ToolPermission.ALWAYS
+    timeout: float | None = 120.0
 
 
 class ExitPlanMode(
@@ -92,9 +89,9 @@ class ExitPlanMode(
         "Exit plan mode after your plan has been approved by the user. "
         "Call this to acknowledge approval and begin implementation."
     )
+    execution_mode: ClassVar[Literal["parallel", "sequential"]] = "sequential"
 
     async def run(self, args: ExitPlanModeArgs) -> ExitPlanModeResult:
         return ExitPlanModeResult(
-            success=True,
-            message="Exiting plan mode. Proceeding with implementation.",
+            success=True, message="Exiting plan mode. Proceeding with implementation."
         )

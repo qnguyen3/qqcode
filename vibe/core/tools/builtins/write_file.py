@@ -12,6 +12,8 @@ from vibe.core.tools.base import (
     BaseToolState,
     ToolError,
     ToolPermission,
+    check_path_patterns,
+    resolve_tool_path,
 )
 from vibe.core.tools.ui import ToolCallDisplay, ToolResultDisplay, ToolUIData
 from vibe.core.types import ToolCallEvent, ToolResultEvent
@@ -36,6 +38,9 @@ class WriteFileConfig(BaseToolConfig):
     permission: ToolPermission = ToolPermission.ASK
     max_write_bytes: int = 64_000
     create_parent_dirs: bool = True
+    timeout: float | None = Field(
+        default=120.0, description="Agent-level timeout for the whole tool invocation."
+    )
 
 
 class WriteFileState(BaseToolState):
@@ -107,8 +112,20 @@ class WriteFile(
 
         return None
 
+    def check_path_restrictions(self, args: WriteFileArgs) -> ToolPermission | None:
+        return check_path_patterns(
+            resolve_tool_path(args.path, self.config.effective_workdir),
+            allowlist=self.config.path_allowlist,
+            denylist=self.config.path_denylist,
+        )
+
     @final
     async def run(self, args: WriteFileArgs) -> WriteFileResult:
+        queue = self.get_file_mutation_queue()
+        candidate_path = self._resolve_candidate_path(args)
+        return await queue.run(candidate_path, lambda: self._prepare_and_write(args))
+
+    async def _prepare_and_write(self, args: WriteFileArgs) -> WriteFileResult:
         file_path, file_existed, content_bytes = self._prepare_and_validate_path(args)
 
         await self._write_file(args, file_path)
@@ -124,6 +141,12 @@ class WriteFile(
             file_existed=file_existed,
             content=args.content,
         )
+
+    def _resolve_candidate_path(self, args: WriteFileArgs) -> Path:
+        file_path = Path(args.path).expanduser()
+        if not file_path.is_absolute():
+            file_path = self.config.effective_workdir / file_path
+        return file_path.resolve()
 
     def _prepare_and_validate_path(self, args: WriteFileArgs) -> tuple[Path, bool, int]:
         if not args.path.strip():

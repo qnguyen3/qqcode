@@ -30,6 +30,22 @@ class ToolRenderer:
     ) -> tuple[type[ToolApprovalWidget], dict[str, Any]]:
         return ToolApprovalWidget, tool_args
 
+    def _merge_warnings(self, display: ToolResultDisplay) -> list[str]:
+        warnings = list(display.warnings)
+        details = display.details or {}
+
+        notice = details.get("notice")
+        if notice and str(notice) not in warnings:
+            warnings.append(str(notice))
+
+        full_output_path = details.get("full_output_path")
+        if full_output_path and not any(
+            str(full_output_path) in warning for warning in warnings
+        ):
+            warnings.append(f"Full output: {full_output_path}")
+
+        return warnings
+
     def get_result_widget(
         self, display: ToolResultDisplay, collapsed: bool
     ) -> tuple[type[ToolResultWidget], dict[str, Any]]:
@@ -37,7 +53,7 @@ class ToolRenderer:
             "success": display.success,
             "message": display.message,
             "details": self._clean_details(display.details),
-            "warnings": display.warnings,
+            "warnings": self._merge_warnings(display),
         }
         return ToolResultWidget, data
 
@@ -70,7 +86,7 @@ class BashRenderer(ToolRenderer):
             "success": display.success,
             "message": display.message,
             "details": self._clean_details(display.details),
-            "warnings": display.warnings,
+            "warnings": self._merge_warnings(display),
         }
         return BashResultWidget, data
 

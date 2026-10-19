@@ -114,7 +114,9 @@ class TestACPNewSession:
 
         # Check mode names
         modes_by_id = {m.id: m for m in session_response.modes.availableModes}
-        assert modes_by_id[VibeSessionMode.APPROVAL_REQUIRED].name == "Approval Required"
+        assert (
+            modes_by_id[VibeSessionMode.APPROVAL_REQUIRED].name == "Approval Required"
+        )
         assert modes_by_id[VibeSessionMode.AUTO_APPROVE].name == "Auto Approve"
         assert modes_by_id[VibeSessionMode.PLAN].name == "Plan"
 

@@ -57,9 +57,12 @@ async def test_truncates_output_to_max_bytes(bash):
 
     result = await bash_tool.run(BashArgs(command="printf 'abcdefghij'"))
 
-    assert result.stdout == "abcde"
+    assert result.stdout == "fghij"
     assert result.stderr == ""
     assert result.returncode == 0
+    assert result.truncated is True
+    assert result.full_output_path is not None
+    assert result.notice is not None
 
 
 @pytest.mark.asyncio

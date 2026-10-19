@@ -108,37 +108,41 @@ class AutoCompactMiddleware:
 
 class ContextWarningMiddleware:
     def __init__(
-        self, threshold_percent: float = 0.5, max_context: int | None = None
+        self,
+        thresholds: tuple[float, ...] = (0.70, 0.90),
+        max_context: int | None = None,
     ) -> None:
-        self.threshold_percent = threshold_percent
+        self.thresholds = thresholds
         self.max_context = max_context
-        self.has_warned = False
+        self.warned_levels: set[float] = set()
 
     async def before_turn(self, context: ConversationContext) -> MiddlewareResult:
-        if self.has_warned:
-            return MiddlewareResult()
-
         max_context = self.max_context
         if max_context is None:
             return MiddlewareResult()
 
-        if context.stats.context_tokens >= max_context * self.threshold_percent:
-            self.has_warned = True
+        warnings: list[str] = []
+        for level in self.thresholds:
+            if level in self.warned_levels:
+                continue
+            if context.stats.context_tokens >= max_context * level:
+                self.warned_levels.add(level)
+                percentage_used = (context.stats.context_tokens / max_context) * 100
+                warnings.append(
+                    f"<{VIBE_WARNING_TAG}>You have used {percentage_used:.0f}% of your total context ({context.stats.context_tokens:,}/{max_context:,} tokens)</{VIBE_WARNING_TAG}>"
+                )
 
-            percentage_used = (context.stats.context_tokens / max_context) * 100
-            warning_msg = f"<{VIBE_WARNING_TAG}>You have used {percentage_used:.0f}% of your total context ({context.stats.context_tokens:,}/{max_context:,} tokens)</{VIBE_WARNING_TAG}>"
-
+        if warnings:
             return MiddlewareResult(
-                action=MiddlewareAction.INJECT_MESSAGE, message=warning_msg
+                action=MiddlewareAction.INJECT_MESSAGE, message="\n\n".join(warnings)
             )
-
         return MiddlewareResult()
 
     async def after_turn(self, context: ConversationContext) -> MiddlewareResult:
         return MiddlewareResult()
 
     def reset(self, reset_reason: ResetReason = ResetReason.STOP) -> None:
-        self.has_warned = False
+        self.warned_levels.clear()
 
 
 class MiddlewarePipeline:

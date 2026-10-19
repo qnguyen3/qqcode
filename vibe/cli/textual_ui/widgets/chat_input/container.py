@@ -44,20 +44,24 @@ class ChatInputContainer(Vertical):
         if isinstance(show_warning, AgentMode):
             self._mode = show_warning
         else:
-            self._mode = AgentMode.AUTO_APPROVE if show_warning else AgentMode.INTERACTIVE
-
-        command_entries = [
-            (alias, command.description)
-            for command in self._command_registry.commands.values()
-            for alias in sorted(command.aliases)
-        ]
+            self._mode = (
+                AgentMode.AUTO_APPROVE if show_warning else AgentMode.INTERACTIVE
+            )
 
         self._completion_manager = MultiCompletionManager([
-            SlashCommandController(CommandCompleter(command_entries), self),
+            self._build_slash_controller(),
             PathCompletionController(PathCompleter(), self),
         ])
         self._completion_popup: CompletionPopup | None = None
         self._body: ChatInputBody | None = None
+
+    def _build_slash_controller(self) -> SlashCommandController:
+        entries = self._command_registry.command_entries()
+        return SlashCommandController(CommandCompleter(entries), self)
+
+    def refresh_commands(self) -> None:
+        """Rebuild slash-command suggestions after the registry changed."""
+        self._completion_manager.replace_controller(0, self._build_slash_controller())
 
     def _get_border_class(self) -> str:
         """Get the border CSS class based on current mode."""

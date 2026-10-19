@@ -1,19 +1,32 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, NamedTuple, final
 
 import aiofiles
 from pydantic import BaseModel, Field
 
+from vibe.core.images import (
+    MAX_IMAGE_BYTES,
+    ImageError,
+    describe_image,
+    is_image_path,
+    pillow_available,
+)
 from vibe.core.tools.base import (
     BaseTool,
     BaseToolConfig,
+    BaseToolResult,
     BaseToolState,
     ToolError,
     ToolPermission,
+    check_path_patterns,
+    resolve_tool_path,
 )
+from vibe.core.tools.truncate import DEFAULT_MAX_LINES, format_notice, truncate_head
 from vibe.core.tools.ui import ToolCallDisplay, ToolResultDisplay, ToolUIData
+from vibe.core.types import ImagePart
 
 if TYPE_CHECKING:
     from vibe.core.types import ToolCallEvent, ToolResultEvent
@@ -23,6 +36,7 @@ class _ReadResult(NamedTuple):
     lines: list[str]
     bytes_read: int
     was_truncated: bool
+    total_lines: int | None = None
 
 
 class ReadFileArgs(BaseModel):
@@ -36,13 +50,16 @@ class ReadFileArgs(BaseModel):
     )
 
 
-class ReadFileResult(BaseModel):
+class ReadFileResult(BaseToolResult):
     path: str
     content: str
     lines_read: int
-    was_truncated: bool = Field(
-        description="True if the reading was stopped due to the max_read_bytes limit."
-    )
+    notice: str | None = None
+    image: ImagePart | None = None
+
+    @property
+    def was_truncated(self) -> bool:
+        return self.truncated
 
 
 class ReadFileToolConfig(BaseToolConfig):
@@ -53,6 +70,9 @@ class ReadFileToolConfig(BaseToolConfig):
     )
     max_state_history: int = Field(
         default=10, description="Number of recently read files to remember in state."
+    )
+    timeout: float | None = Field(
+        default=120.0, description="Agent-level timeout for the whole tool invocation."
     )
 
 
@@ -68,20 +88,40 @@ class ReadFile(
         "Read a UTF-8 file, returning content from a specific line range. "
         "Reading is capped by a byte limit for safety."
     )
+    scriptable: ClassVar[bool] = True
 
     @final
     async def run(self, args: ReadFileArgs) -> ReadFileResult:
         file_path = self._prepare_and_validate_path(args)
 
+        if is_image_path(file_path):
+            result = self._read_image(file_path)
+            self._update_state_history(file_path)
+            return result
+
         read_result = await self._read_file(args, file_path)
 
         self._update_state_history(file_path)
 
+        text = "".join(read_result.lines)
+        max_lines = args.limit or DEFAULT_MAX_LINES
+        truncated = truncate_head(
+            text, max_lines=max_lines, max_bytes=self.config.max_read_bytes
+        )
+        if truncated.truncated and read_result.total_lines is not None:
+            truncated = replace(truncated, total_lines=read_result.total_lines)
+
+        notice = format_notice(truncated)
+        if truncated.truncated:
+            next_offset = args.offset + (truncated.last_line or 0)
+            notice = f"{notice} Use offset={next_offset} to continue reading."
+
         return ReadFileResult(
             path=str(file_path),
-            content="".join(read_result.lines),
-            lines_read=len(read_result.lines),
-            was_truncated=read_result.was_truncated,
+            content=truncated.content,
+            lines_read=len(truncated.content.splitlines()),
+            truncated=truncated.truncated,
+            notice=notice or None,
         )
 
     def check_allowlist_denylist(self, args: ReadFileArgs) -> ToolPermission | None:
@@ -102,6 +142,13 @@ class ReadFile(
 
         return None
 
+    def check_path_restrictions(self, args: ReadFileArgs) -> ToolPermission | None:
+        return check_path_patterns(
+            resolve_tool_path(args.path, self.config.effective_workdir),
+            allowlist=self.config.path_allowlist,
+            denylist=self.config.path_denylist,
+        )
+
     def _prepare_and_validate_path(self, args: ReadFileArgs) -> Path:
         self._validate_inputs(args)
 
@@ -114,9 +161,10 @@ class ReadFile(
 
     async def _read_file(self, args: ReadFileArgs, file_path: Path) -> _ReadResult:
         try:
-            lines_to_return: list[str] = []
+            stored: list[str] = []
+            stored_bytes = 0
             bytes_read = 0
-            was_truncated = False
+            total_lines = 0
 
             async with aiofiles.open(file_path, encoding="utf-8", errors="ignore") as f:
                 line_index = 0
@@ -125,22 +173,25 @@ class ReadFile(
                         line_index += 1
                         continue
 
-                    if args.limit is not None and len(lines_to_return) >= args.limit:
+                    if args.limit is not None and total_lines >= args.limit:
                         break
 
                     line_bytes = len(line.encode("utf-8"))
-                    if bytes_read + line_bytes > self.config.max_read_bytes:
-                        was_truncated = True
-                        break
-
-                    lines_to_return.append(line)
+                    total_lines += 1
                     bytes_read += line_bytes
+
+                    # Keep enough lines to render the byte-truncated head.
+                    if stored_bytes <= self.config.max_read_bytes:
+                        stored.append(line)
+                        stored_bytes += line_bytes
+
                     line_index += 1
 
             return _ReadResult(
-                lines=lines_to_return,
+                lines=stored,
                 bytes_read=bytes_read,
-                was_truncated=was_truncated,
+                was_truncated=total_lines > len(stored),
+                total_lines=total_lines,
             )
 
         except OSError as exc:
@@ -168,6 +219,37 @@ class ReadFile(
             raise ToolError(f"File not found at: {file_path}")
         if resolved_path.is_dir():
             raise ToolError(f"Path is a directory, not a file: {file_path}")
+
+    def _read_image(self, file_path: Path) -> ReadFileResult:
+        try:
+            image = describe_image(file_path)
+        except ImageError as exc:
+            raise ToolError(str(exc)) from exc
+
+        if (
+            image.size_bytes is not None
+            and image.size_bytes > MAX_IMAGE_BYTES
+            and not pillow_available()
+        ):
+            raise ToolError(
+                f"Image {file_path} is {image.size_bytes} bytes, over the "
+                f"{MAX_IMAGE_BYTES} byte limit. Install Pillow to resize it "
+                "automatically."
+            )
+
+        dimensions = (
+            f", {image.width}x{image.height}" if image.width and image.height else ""
+        )
+        size = f"{image.size_bytes} bytes" if image.size_bytes else "unknown size"
+        return ReadFileResult(
+            path=str(file_path),
+            content=(
+                f"Image {file_path.name} ({image.media_type}, {size}{dimensions}). "
+                "The image is attached when the active model supports vision."
+            ),
+            lines_read=0,
+            image=image,
+        )
 
     def _update_state_history(self, file_path: Path) -> None:
         self.state.recently_read_files.append(str(file_path.resolve()))
@@ -205,20 +287,43 @@ class ReadFile(
             )
 
         path_obj = Path(event.result.path)
+        if event.result.image is not None:
+            image = event.result.image
+            size = f"{image.size_bytes} bytes" if image.size_bytes else "image"
+            return ToolResultDisplay(
+                success=True,
+                message=f"Read {image.media_type} image from {path_obj.name} ({size})",
+                details={
+                    "path": str(event.result.path),
+                    "media_type": image.media_type,
+                    "size_bytes": image.size_bytes,
+                    "width": image.width,
+                    "height": image.height,
+                    "content": event.result.content,
+                    "file_extension": path_obj.suffix.lstrip(".")
+                    if path_obj.suffix
+                    else "image",
+                },
+            )
+
         message = f"Read {event.result.lines_read} line{'' if event.result.lines_read <= 1 else 's'} from {path_obj.name}"
+        warnings: list[str] = []
         if event.result.was_truncated:
             message += " (truncated)"
+            warnings.append("File was truncated due to size limit")
+        if event.result.notice:
+            warnings.append(event.result.notice)
 
         return ToolResultDisplay(
             success=True,
             message=message,
-            warnings=["File was truncated due to size limit"]
-            if event.result.was_truncated
-            else [],
+            warnings=warnings,
             details={
                 "path": str(event.result.path),
                 "lines_read": event.result.lines_read,
                 "was_truncated": event.result.was_truncated,
+                "notice": event.result.notice,
+                "full_output_path": event.result.full_output_path,
                 "content": event.result.content,
                 "file_extension": path_obj.suffix.lstrip(".")
                 if path_obj.suffix

@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, cast
 import httpx
 import mistralai
 
+from vibe.core.images import resolve_messages
+from vibe.core.llm.capabilities import clamp_max_tokens
 from vibe.core.llm.exceptions import BackendErrorBuilder
 from vibe.core.types import (
     AvailableTool,
@@ -24,7 +26,8 @@ from vibe.core.types import (
 )
 
 if TYPE_CHECKING:
-    from vibe.core.config import ModelConfig, ProviderConfig
+    from vibe.core.config import ModelConfig, ProviderConfig, ThinkingLevel
+    from vibe.core.llm.cache import CachePlan
 
 
 class MistralMapper:
@@ -112,7 +115,12 @@ class MistralMapper:
 
 
 class MistralBackend:
-    def __init__(self, provider: ProviderConfig, timeout: float = 720.0) -> None:
+    def __init__(
+        self,
+        provider: ProviderConfig,
+        timeout: float = 720.0,
+        honor_retry_after: bool = True,
+    ) -> None:
         self._client: mistralai.Mistral | None = None
         self._provider = provider
         self._mapper = MistralMapper()
@@ -170,7 +178,17 @@ class MistralBackend:
         max_tokens: int | None,
         tool_choice: StrToolChoice | AvailableTool | None,
         extra_headers: dict[str, str] | None,
+        cache_plan: CachePlan | None = None,
+        thinking_level: ThinkingLevel | None = None,
     ) -> LLMChunk:
+        if not model.capabilities.tools:
+            tools = None
+            tool_choice = None
+        elif not model.capabilities.tool_choice:
+            tool_choice = None
+
+        messages = resolve_messages(messages, vision=False)
+
         try:
             response = await self._get_client().chat.complete_async(
                 model=model.name,
@@ -179,7 +197,7 @@ class MistralBackend:
                 tools=[self._mapper.prepare_tool(tool) for tool in tools]
                 if tools
                 else None,
-                max_tokens=max_tokens,
+                max_tokens=clamp_max_tokens(model, max_tokens),
                 tool_choice=self._mapper.prepare_tool_choice(tool_choice)
                 if tool_choice
                 else None,
@@ -242,7 +260,17 @@ class MistralBackend:
         max_tokens: int | None,
         tool_choice: StrToolChoice | AvailableTool | None,
         extra_headers: dict[str, str] | None,
+        cache_plan: CachePlan | None = None,
+        thinking_level: ThinkingLevel | None = None,
     ) -> AsyncGenerator[LLMChunk, None]:
+        if not model.capabilities.tools:
+            tools = None
+            tool_choice = None
+        elif not model.capabilities.tool_choice:
+            tool_choice = None
+
+        messages = resolve_messages(messages, vision=False)
+
         try:
             async for chunk in await self._get_client().chat.stream_async(
                 model=model.name,
@@ -251,7 +279,7 @@ class MistralBackend:
                 tools=[self._mapper.prepare_tool(tool) for tool in tools]
                 if tools
                 else None,
-                max_tokens=max_tokens,
+                max_tokens=clamp_max_tokens(model, max_tokens),
                 tool_choice=self._mapper.prepare_tool_choice(tool_choice)
                 if tool_choice
                 else None,

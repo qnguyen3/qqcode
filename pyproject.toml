@@ -46,6 +46,12 @@ dependencies = [
     "anthropic>=0.75.0",
 ]
 
+[project.optional-dependencies]
+# Resizes oversized images and probes their dimensions before sending them
+# to vision models. QQcode works without it.
+images = ["pillow>=10.0"]
+sdk = []
+
 [project.urls]
 Homepage = "https://github.com/qnguyen3/qqcode"
 Repository = "https://github.com/qnguyen3/qqcode"
@@ -67,6 +73,7 @@ include = ["vibe/"]
 [project.scripts]
 qqcode = "vibe.cli.entrypoint:main"
 qqcode-acp = "vibe.acp.entrypoint:main"
+qqcode-evals = "vibe.core.evals.__main__:cli"
 
 
 [tool.uv]
@@ -130,6 +137,13 @@ ignore = ["D203", "D205", "D213", "ANN401", "PLR6301"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "PLR"]
+# Adapters keep the frozen legacy prepare_request signature (12 args).
+"vibe/core/llm/backend/adapters/*.py" = ["PLR0913"]
+# Textual requires public `on_*`/`action_*` handler names on the App class,
+# and the App constructor mirrors the CLI startup options.
+"vibe/cli/textual_ui/app.py" = ["PLR0904", "PLR0913", "PLR0917"]
+# Agent accepts its full construction surface through one constructor.
+"vibe/core/agent.py" = ["PLR0913", "PLR0917"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

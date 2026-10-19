@@ -5,12 +5,28 @@ import getpass
 import json
 from pathlib import Path
 import subprocess
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import aiofiles
 
 from vibe.core.llm.format import get_active_tool_classes
-from vibe.core.types import AgentStats, LLMMessage, SessionInfo, SessionMetadata
+from vibe.core.sessions.entries import (
+    CustomEntry,
+    MessageEntry,
+    SessionEntry,
+    SessionHeader,
+    ThinkingLevelChangeEntry,
+    new_entry_id,
+    now_iso,
+)
+from vibe.core.sessions.store import JSONL_SUFFIX, JsonlSessionStore
+from vibe.core.types import (
+    AgentStats,
+    LLMMessage,
+    SessionInfo,
+    SessionMetadata,
+    message_for_storage,
+)
 from vibe.core.utils import is_windows
 
 if TYPE_CHECKING:
@@ -29,7 +45,20 @@ def _matches_workdir(metadata: dict[str, Any], resolved_workdir: Path) -> bool:
         return False
 
 
+def _safe_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 class InteractionLogger:
+    """Facade over the append-only JSONL store.
+
+    Keeps the historical API for legacy ``.json`` sessions while new
+    sessions are written incrementally to ``.jsonl`` files.
+    """
+
     def __init__(
         self,
         session_config: SessionLoggingConfig,
@@ -37,6 +66,7 @@ class InteractionLogger:
         auto_approve: bool = False,
         workdir: Path | None = None,
         existing_filepath: Path | None = None,
+        parent_session_id: str | None = None,
     ) -> None:
         if workdir is None:
             workdir = Path.cwd()
@@ -44,6 +74,13 @@ class InteractionLogger:
         self.enabled = session_config.enabled
         self.auto_approve = auto_approve
         self.workdir = workdir
+        self.parent_session_id = parent_session_id
+        self.format: Literal["json", "jsonl"] = session_config.format
+        self._write_format: Literal["json", "jsonl"] = session_config.format
+        self._store = JsonlSessionStore(session_config)
+        self._last_entry_id: str | None = None
+        self._header: SessionHeader | None = None
+        self._header_written = False
 
         if not self.enabled:
             self.save_dir: Path | None = None
@@ -64,10 +101,98 @@ class InteractionLogger:
         # Use existing session file if resuming, otherwise create new
         if existing_filepath and existing_filepath.exists():
             self.filepath = existing_filepath
-            self.session_metadata = self._load_existing_metadata(existing_filepath)
+            self._write_format = (
+                "json" if existing_filepath.suffix == ".json" else "jsonl"
+            )
+            if self._write_format == "jsonl":
+                self._load_jsonl_state(existing_filepath)
+            else:
+                self.session_metadata = self._load_existing_metadata(existing_filepath)
+        elif self.format == "jsonl":
+            self._write_format = "jsonl"
+            self._header = self._build_header(self.session_id)
+            self.filepath = self._store.session_path(self.workdir, self.session_id)
+            self.session_metadata = self._initialize_session_metadata()
         else:
+            self._write_format = "json"
             self.filepath = self._get_save_filepath()
             self.session_metadata = self._initialize_session_metadata()
+
+    def _load_jsonl_state(self, filepath: Path) -> None:
+        view = self._store.read(filepath)
+        self._header = view.header
+        self._header_written = True
+        self._last_entry_id = view.entries[-1].id if view.entries else view.header.id
+        self.session_metadata = SessionMetadata(
+            session_id=self.session_id,
+            start_time=view.header.timestamp,
+            end_time=None,
+            git_commit=view.header.git_commit,
+            git_branch=view.header.git_branch,
+            auto_approve=self.auto_approve,
+            username=view.header.username or self._get_username(),
+            environment={"working_directory": view.header.cwd or str(self.workdir)},
+        )
+
+    def _build_header(self, session_id: str) -> SessionHeader:
+        return SessionHeader(
+            id=session_id,
+            timestamp=now_iso(),
+            cwd=str(self.workdir),
+            git_branch=self._get_git_branch(),
+            git_commit=self._get_git_commit(),
+            username=self._get_username(),
+            parent_session_id=self.parent_session_id,
+        )
+
+    def _ensure_session_file(self) -> None:
+        if self._header_written or self.filepath is None or self._header is None:
+            return
+        self._store.write_entries(self.filepath, self._header, [])
+        self._header_written = True
+        self._last_entry_id = self._header.id
+
+    def _append_entry(self, entry: SessionEntry) -> str | None:
+        if not self.enabled or self.filepath is None:
+            return None
+        self._ensure_session_file()
+        self._store.append(entry, self.filepath)
+        self._last_entry_id = entry.id
+        return entry.id
+
+    @property
+    def writes_entries(self) -> bool:
+        """Whether entries are appended to a ``.jsonl`` session file."""
+        return (
+            self.enabled and self._write_format == "jsonl" and self.filepath is not None
+        )
+
+    def append_entry(self, entry: SessionEntry) -> str | None:
+        """Persist ``entry`` as the next line of the session file.
+
+        The entry keeps the id the agent assigned, so the file and the in-memory
+        context share identities. Image bytes are dropped on the way out.
+        Returns ``None`` when nothing is written (logging disabled or legacy
+        ``.json`` format).
+        """
+        if self._write_format != "jsonl":
+            return None
+        if isinstance(entry, MessageEntry):
+            stored = message_for_storage(entry.message)
+            entry = entry.model_copy(update={"message": stored})
+        return self._append_entry(entry)
+
+    def append_message(
+        self, message: LLMMessage, parent_id: str | None = None
+    ) -> str | None:
+        return self.append_entry(
+            MessageEntry(
+                id=new_entry_id(),
+                parent_id=parent_id if parent_id is not None else self._last_entry_id,
+                timestamp=now_iso(),
+                message=message,
+            )
+        )
 
     def _get_save_filepath(self) -> Path:
         if self.save_dir is None or self.session_prefix is None:
@@ -166,6 +291,9 @@ class InteractionLogger:
         if self.session_metadata is None:
             return None
 
+        if self._write_format == "jsonl":
+            return str(self.filepath)
+
         active_tools = get_active_tool_classes(tool_manager, config)
 
         tools_available = [
@@ -188,9 +316,15 @@ class InteractionLogger:
                 "total_messages": len(messages),
                 "tools_available": tools_available,
                 "agent_config": config.model_dump(mode="json"),
-                "additional_directory_contexts": [str(path) for path in additional_directory_contexts] if additional_directory_contexts else [],
+                "additional_directory_contexts": [
+                    str(path) for path in additional_directory_contexts
+                ]
+                if additional_directory_contexts
+                else [],
             },
-            "messages": [m.model_dump(exclude_none=True) for m in messages],
+            "messages": [
+                message_for_storage(m).model_dump(exclude_none=True) for m in messages
+            ],
         }
 
         try:
@@ -202,15 +336,6 @@ class InteractionLogger:
             return str(self.filepath)
         except Exception:
             return None
-
-    def reset_session(self, session_id: str) -> None:
-        if not self.enabled:
-            return
-
-        self.session_id = session_id
-        self.session_start_time = datetime.now().isoformat()
-        self.filepath = self._get_save_filepath()
-        self.session_metadata = self._initialize_session_metadata()
 
     def get_session_info(
         self, messages: list[dict[str, Any]], stats: AgentStats
@@ -234,20 +359,35 @@ class InteractionLogger:
 
     @staticmethod
     def find_latest_session(config: SessionLoggingConfig) -> Path | None:
+        candidates: list[Path] = []
+        store = JsonlSessionStore(config)
+        if store.root.exists():
+            candidates.extend(store.root.glob(f"*/*{JSONL_SUFFIX}"))
+
         save_dir = Path(config.save_dir)
-        if not save_dir.exists():
+        if save_dir.exists():
+            candidates.extend(save_dir.glob(f"{config.session_prefix}_*.json"))
+
+        if not candidates:
             return None
 
-        pattern = f"{config.session_prefix}_*.json"
-        session_files = list(save_dir.glob(pattern))
-
-        if not session_files:
-            return None
-
-        return max(session_files, key=lambda p: p.stat().st_mtime)
+        return max(candidates, key=_safe_mtime)
 
     @staticmethod
     def find_session_by_id(
+        session_id: str, config: SessionLoggingConfig
+    ) -> Path | None:
+        matches: list[Path] = []
+        if jsonl_path := JsonlSessionStore(config).find(session_id):
+            matches.append(jsonl_path)
+        if legacy_path := InteractionLogger._find_legacy_by_id(session_id, config):
+            matches.append(legacy_path)
+        if not matches:
+            return None
+        return max(matches, key=_safe_mtime)
+
+    @staticmethod
+    def _find_legacy_by_id(
         session_id: str, config: SessionLoggingConfig
     ) -> Path | None:
         save_dir = Path(config.save_dir)
@@ -266,19 +406,12 @@ class InteractionLogger:
         for pattern in patterns:
             matches = list(save_dir.glob(pattern))
             if matches:
-                return (
-                    max(matches, key=lambda p: p.stat().st_mtime)
-                    if len(matches) > 1
-                    else matches[0]
-                )
-
+                return max(matches, key=_safe_mtime)
         return None
 
     @staticmethod
     def list_sessions(
-        config: SessionLoggingConfig,
-        limit: int = 20,
-        workdir: Path | None = None,
+        config: SessionLoggingConfig, limit: int = 20, workdir: Path | None = None
     ) -> list[tuple[Path, dict[str, Any]]]:
         """List recent sessions with summary info, sorted by most recent first.
 
@@ -293,6 +426,27 @@ class InteractionLogger:
             - end_time: Session end time for display
             - last_user_message: Last user message content (for preview)
         """
+        results: list[tuple[Path, dict[str, Any]]] = []
+        store = JsonlSessionStore(config)
+        for summary in store.list(workdir=workdir, limit=limit):
+            results.append((
+                summary.path,
+                {
+                    "session_id": summary.session_id[:8],
+                    "end_time": summary.end_time,
+                    "last_user_message": summary.last_user_message,
+                    "start_time": summary.start_time,
+                },
+            ))
+        results.extend(InteractionLogger._list_legacy_sessions(config, workdir))
+
+        results.sort(key=lambda item: _safe_mtime(item[0]), reverse=True)
+        return results[:limit]
+
+    @staticmethod
+    def _list_legacy_sessions(
+        config: SessionLoggingConfig, workdir: Path | None
+    ) -> list[tuple[Path, dict[str, Any]]]:
         save_dir = Path(config.save_dir)
         if not save_dir.exists():
             return []
@@ -303,17 +457,12 @@ class InteractionLogger:
         if not session_files:
             return []
 
-        # Sort by modification time, most recent first
-        session_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        session_files.sort(key=_safe_mtime, reverse=True)
 
-        # Resolve workdir for comparison if provided
         resolved_workdir = workdir.resolve() if workdir else None
 
         results: list[tuple[Path, dict[str, Any]]] = []
         for filepath in session_files:
-            if len(results) >= limit:
-                break
-
             try:
                 with filepath.open("r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -321,7 +470,9 @@ class InteractionLogger:
                 metadata = data.get("metadata", {})
 
                 # Filter by workdir if specified
-                if resolved_workdir and not _matches_workdir(metadata, resolved_workdir):
+                if resolved_workdir and not _matches_workdir(
+                    metadata, resolved_workdir
+                ):
                     continue
 
                 messages = data.get("messages", [])
@@ -335,7 +486,9 @@ class InteractionLogger:
 
                 summary = {
                     "session_id": metadata.get("session_id", "unknown")[:8],
-                    "end_time": metadata.get("end_time", metadata.get("start_time", "")),
+                    "end_time": metadata.get(
+                        "end_time", metadata.get("start_time", "")
+                    ),
                     "last_user_message": last_user_message,
                 }
                 results.append((filepath, summary))
@@ -347,6 +500,45 @@ class InteractionLogger:
 
     @staticmethod
     def load_session(filepath: Path) -> tuple[list[LLMMessage], dict[str, Any]]:
+        if filepath.suffix == JSONL_SUFFIX:
+            store = JsonlSessionStore(root=filepath.parent)
+            view = store.read(filepath)
+            messages = view.messages()
+            custom: dict[str, Any] = {
+                entry.key: entry.value
+                for entry in view.entries
+                if isinstance(entry, CustomEntry)
+            }
+            last_model = view.last_model()
+            last_thinking = next(
+                (
+                    entry.level
+                    for entry in reversed(view.entries)
+                    if isinstance(entry, ThinkingLevelChangeEntry)
+                ),
+                None,
+            )
+            metadata: dict[str, Any] = {
+                "session_id": view.header.id,
+                "start_time": view.header.timestamp,
+                "end_time": (
+                    view.entries[-1].timestamp
+                    if view.entries
+                    else view.header.timestamp
+                ),
+                "git_branch": view.header.git_branch,
+                "git_commit": view.header.git_commit,
+                "cwd": view.header.cwd,
+                "parent_session_id": view.header.parent_session_id,
+                "total_messages": len(messages),
+                "stats": view.stats().model_dump(mode="json"),
+                "truncated_at": view.truncated_at,
+                "custom": custom,
+                "model": last_model.model_alias if last_model else None,
+                "thinking_level": last_thinking,
+            }
+            return messages, metadata
+
         with filepath.open("r", encoding="utf-8") as f:
             content = f.read()
 

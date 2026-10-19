@@ -41,7 +41,16 @@ class ToolResultWidget(Static):
         else:
             yield Static(message, markup=False)
 
-        if not self.collapsed and (details := self.data.get("details")):
+        if self.collapsed:
+            return
+
+        if warnings := self.data.get("warnings"):
+            for warning in warnings:
+                yield Static(
+                    f"⚠ {warning}", markup=False, classes="tool-result-warning"
+                )
+
+        if details := self.data.get("details"):
             for key, value in details.items():
                 if value:
                     yield Static(
@@ -70,7 +79,16 @@ class BashResultWidget(ToolResultWidget):
         else:
             yield Static(message, markup=False)
 
-        if not self.collapsed and (details := self.data.get("details")):
+        if self.collapsed:
+            return
+
+        if warnings := self.data.get("warnings"):
+            for warning in warnings:
+                yield Static(
+                    f"⚠ {warning}", markup=False, classes="tool-result-warning"
+                )
+
+        if details := self.data.get("details"):
             for key, value in details.items():
                 if value:
                     yield Static(
